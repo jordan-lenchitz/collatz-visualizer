@@ -8,11 +8,13 @@ built with react and canvas
 
 to use it locally
 git clone the repository
+cd app
 npm install
 npm run dev
 
 to deploy it
 get a cloudflare token
+cd app
 npm run build
 npx wrangler pages deploy dist
 
