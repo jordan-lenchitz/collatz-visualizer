@@ -1,25 +1,11 @@
-collatz visualizer
+# collatz-visualizer
 
-a web app for the math problem
-it draws paths for numbers up to ten thousand
-type a number and it moves the camera to the node
-a light travels down the path to one
-built with react and canvas
+a web app for the wholesome unsolved math problem
 
-to use it locally
-git clone the repository
-cd app
-npm install
-npm run dev
+we draw paths for numbers up to ten thousand so you can type a number and it moves the camera to the node and then a light travels down the path to one
 
-to deploy it
-get a cloudflare token
-cd app
-npm run build
-npx wrangler pages deploy dist
+to use it locally you can git clone the repository then cd app and npm install and finally npm run dev
 
-the math rules
-start with any number
-if it is even cut it in half
-if it is odd multiply by three and add one
-it always goes to one
+to deploy it you can get a cloudflare token and then cd app and npm run build and finally npx wrangler pages deploy dist
+
+the math rules go we start with any number if it is even cut it in half if it is odd multiply by three and add one do that long enough and it always goes to one 
