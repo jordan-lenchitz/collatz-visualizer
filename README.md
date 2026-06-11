@@ -2,7 +2,7 @@
 
 a web app for the wholesome unsolved math problem
 
-we draw paths for numbers up to ten thousand so you can type a number and it moves the camera to the node and then a light travels down the path to one
+we draw a tree so you can type a number and it moves the camera to the node and then a light travels down the path to one
 
 to use it locally you can git clone the repository then cd app and npm install and finally npm run dev
 
