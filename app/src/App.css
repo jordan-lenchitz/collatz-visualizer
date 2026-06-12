@@ -85,6 +85,14 @@
   transform: translateY(1px);
 }
 
+.action-btn.explore-active {
+  background: linear-gradient(135deg, rgba(255, 170, 0, 0.4), rgba(255, 0, 184, 0.4));
+  border-color: #ff00b8;
+  color: #ff00b8;
+  box-shadow: 0 0 20px rgba(255, 0, 184, 0.4), inset 0 0 15px rgba(255, 0, 184, 0.3);
+  text-shadow: 0 0 8px rgba(255, 0, 184, 0.8);
+}
+
 .title-overlay {
   position: absolute;
   top: 30px;

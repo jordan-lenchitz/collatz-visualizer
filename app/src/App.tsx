@@ -5,6 +5,7 @@ import CollatzTree, { type CollatzTreeRef } from './CollatzTree';
 function App() {
   const [seed, setSeed] = useState<string>('27');
   const [treeState, setTreeState] = useState<'IDLE' | 'BUILDING' | 'BUILT'>('IDLE');
+  const [isExploreMode, setIsExploreMode] = useState(false);
   const treeRef = useRef<CollatzTreeRef>(null);
 
   const handleAction = () => {
@@ -30,6 +31,11 @@ function App() {
   const handleSeedChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSeed(e.target.value);
     setTreeState('IDLE');
+  };
+
+  const toggleExploreMode = () => {
+    setIsExploreMode(!isExploreMode);
+    treeRef.current?.setExploreMode(!isExploreMode);
   };
 
   return (
@@ -64,6 +70,12 @@ function App() {
           {treeState === 'IDLE' && 'plant and grow the tree from one up to your number'}
           {treeState === 'BUILDING' && 'growing...'}
           {treeState === 'BUILT' && 'follow path to one!'}
+        </button>
+        <button
+          className={`action-btn ${isExploreMode ? 'explore-active' : ''}`}
+          onClick={toggleExploreMode}
+        >
+          {isExploreMode ? 'stop exploring (auto-follow)' : 'explore freely'}
         </button>
       </div>
     </div>

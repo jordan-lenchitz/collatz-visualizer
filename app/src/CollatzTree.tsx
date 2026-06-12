@@ -4,6 +4,7 @@ import * as d3 from 'd3';
 export interface CollatzTreeRef {
   buildTree: (seed: number, onComplete: () => void) => void;
   followPathDown: (seed: number) => void;
+  setExploreMode: (explore: boolean) => void;
 }
 
 interface Node {
@@ -29,6 +30,7 @@ const CollatzTree = forwardRef<CollatzTreeRef, {}>((_props, ref) => {
   
   const activeTaskRef = useRef<{ timeoutId?: number, isRunning: boolean }>({ isRunning: false });
   const activePathRef = useRef<{ nodes: Node[], progress: number } | null>(null);
+  const isExploreModeRef = useRef(false);
   const [isAnimating, setIsAnimating] = useState(false);
 
   const initSingleNode = () => {
@@ -49,17 +51,26 @@ const CollatzTree = forwardRef<CollatzTreeRef, {}>((_props, ref) => {
 
   const addNode = (val: number, parent: Node, isMainPath: boolean): Node => {
     let newAngle = parent.angle;
+    
+    // Calculate probability of branching right based on horizontal position
+    // If far right (positive x), higher chance to branch left, ensuring eventual consistency
+    let probRight = 0.5 - (parent.x / 1500);
+    probRight = Math.max(0.1, Math.min(0.9, probRight)); // clamp between 0.1 and 0.9
+    
+    const dir = Math.random() < probRight ? 1 : -1;
+
     if (val === parent.id * 2) {
-      newAngle += 0.2 + (Math.random() * 0.1 - 0.05);
+      newAngle += dir * (0.25 + Math.random() * 0.1);
     } else {
-      newAngle -= 0.6 + (Math.random() * 0.2 - 0.1);
+      // odd branches tend to shoot out the opposite way
+      newAngle += (dir * -1) * (0.6 + Math.random() * 0.2);
     }
 
     const upAngle = -Math.PI / 2;
     let diff = upAngle - newAngle;
     while (diff > Math.PI) diff -= 2 * Math.PI;
     while (diff < -Math.PI) diff += 2 * Math.PI;
-    newAngle += diff * 0.15;
+    newAngle += diff * 0.10;
 
     const currentLen = isMainPath ? 60 : 45;
     
@@ -118,7 +129,7 @@ const CollatzTree = forwardRef<CollatzTreeRef, {}>((_props, ref) => {
     const height = canvas.height;
     
     // Camera follow logic
-    if (cameraTargetRef.current) {
+    if (cameraTargetRef.current && !isExploreModeRef.current) {
       const target = cameraTargetRef.current;
       const t = transformRef.current;
       
@@ -148,17 +159,65 @@ const CollatzTree = forwardRef<CollatzTreeRef, {}>((_props, ref) => {
     ctx.lineJoin = 'round';
     
     for (const edge of edges.current) {
-      ctx.beginPath();
-      ctx.moveTo(edge.source.x, edge.source.y);
-      ctx.lineTo(edge.target.x, edge.target.y);
-      if (edge.isMain) {
-        ctx.strokeStyle = 'rgba(0, 184, 255, 0.8)';
-        ctx.lineWidth = 3 / t.k;
-      } else {
+      if (!edge.isMain) {
+        ctx.beginPath();
+        ctx.moveTo(edge.source.x, edge.source.y);
+        ctx.lineTo(edge.target.x, edge.target.y);
         ctx.strokeStyle = 'rgba(0, 255, 170, 0.4)';
         ctx.lineWidth = 1.5 / t.k;
+        ctx.stroke();
       }
-      ctx.stroke();
+    }
+    
+    for (const edge of edges.current) {
+      if (edge.isMain) {
+        ctx.beginPath();
+        ctx.moveTo(edge.source.x, edge.source.y);
+        ctx.lineTo(edge.target.x, edge.target.y);
+        ctx.strokeStyle = 'rgba(0, 184, 255, 0.8)';
+        ctx.lineWidth = 3 / t.k;
+        ctx.stroke();
+      }
+    }
+
+
+
+    for (const node of nodesMap.current.values()) {
+      if (!node.isMainPath) {
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, 10, 0, Math.PI * 2);
+        ctx.fillStyle = '#0a0a0a';
+        ctx.fill();
+        
+        ctx.lineWidth = 2 / t.k;
+        ctx.strokeStyle = 'rgba(0, 255, 170, 0.6)';
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.font = `${8}px 'Inter', sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(node.id.toString(), node.x, node.y);
+      }
+    }
+
+    for (const node of nodesMap.current.values()) {
+      if (node.isMainPath) {
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, 16, 0, Math.PI * 2);
+        ctx.fillStyle = '#0a0a0a';
+        ctx.fill();
+        
+        ctx.lineWidth = 2 / t.k;
+        ctx.strokeStyle = '#00b8ff';
+        ctx.stroke();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `${12}px 'Inter', sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(node.id.toString(), node.x, node.y);
+      }
     }
 
     const active = activePathRef.current;
@@ -206,25 +265,6 @@ const CollatzTree = forwardRef<CollatzTreeRef, {}>((_props, ref) => {
       }
     }
 
-    for (const node of nodesMap.current.values()) {
-      const radius = node.isMainPath ? 16 : 10;
-      
-      ctx.beginPath();
-      ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
-      ctx.fillStyle = '#0a0a0a';
-      ctx.fill();
-      
-      ctx.lineWidth = 2 / t.k;
-      ctx.strokeStyle = node.isMainPath ? '#00b8ff' : 'rgba(0, 255, 170, 0.6)';
-      ctx.stroke();
-
-      ctx.fillStyle = node.isMainPath ? '#ffffff' : 'rgba(255, 255, 255, 0.7)';
-      ctx.font = `${node.isMainPath ? 12 : 8}px 'Inter', sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(node.id.toString(), node.x, node.y);
-    }
-
     ctx.restore();
     animationRef.current = requestAnimationFrame(draw);
   };
@@ -250,83 +290,100 @@ const CollatzTree = forwardRef<CollatzTreeRef, {}>((_props, ref) => {
 
       let step = 1;
       let branchTips: Node[] = [];
+      let isMainBuilt = false;
 
       const svg = d3.select(canvasRef.current);
       const zoom = d3.zoom<HTMLCanvasElement, unknown>()
         .scaleExtent([0.1, 10])
         .on('zoom', (e) => {
           transformRef.current = e.transform;
-          // Stop auto-following if the user manually zooms/pans during idle
-          // but we won't disable it strictly here to allow smooth override
         });
       svg.call(zoom as any);
 
       const nextStep = () => {
         if (!activeTaskRef.current.isRunning) return;
-        if (step >= pathSeq.length) {
+        
+        if (step >= pathSeq.length && !isMainBuilt) {
+          isMainBuilt = true;
           setIsAnimating(false);
-          activeTaskRef.current.isRunning = false;
           onComplete();
-          return;
         }
 
-        const val = pathSeq[step];
-        const prevVal = pathSeq[step - 1];
-        const parent = nodesMap.current.get(prevVal)!;
-        
-        const node = addNode(val, parent, true);
-        
-        // Spawn initial branches from main path
-        const c1 = node.id * 2;
-        const c2 = (node.id - 1) / 3;
-        
-        if (!nodesMap.current.has(c1) && Math.random() < 0.4) {
-           branchTips.push(node);
-        }
-        if (node.id > 4 && (node.id - 1) % 3 === 0 && !nodesMap.current.has(c2)) {
-           branchTips.push(node);
+        if (step < pathSeq.length) {
+          const val = pathSeq[step];
+          const prevVal = pathSeq[step - 1];
+          const parent = nodesMap.current.get(prevVal)!;
+          
+          const node = addNode(val, parent, true);
+          
+          const c1 = node.id * 2;
+          const c2 = (node.id - 1) / 3;
+          
+          if (!nodesMap.current.has(c1) && Math.random() < 0.4) {
+             branchTips.push(node);
+          }
+          if (node.id > 4 && (node.id - 1) % 3 === 0 && !nodesMap.current.has(c2)) {
+             branchTips.push(node);
+          }
+
+          const canvas = canvasRef.current;
+          if (canvas) {
+            const height = canvas.height;
+            const k = 1.2; 
+            cameraTargetRef.current = {
+              x: -node.x * k,
+              y: -height * 0.4 - node.y * k,
+              k: k
+            };
+          }
         }
 
         // Advance all active side branches by one step alongside the main path
-        let newTips: Node[] = [];
-        for (const tip of branchTips) {
-            if (nodesMap.current.size > 2000) break; // prevent lag
-            
-            const t1 = tip.id * 2;
-            const t2 = (tip.id - 1) / 3;
-            
-            if (!nodesMap.current.has(t1) && Math.random() < 0.7) {
-                const n1 = addNode(t1, tip, false);
-                newTips.push(n1);
-            }
-            if (tip.id > 4 && (tip.id - 1) % 3 === 0) {
-                if (t2 % 2 !== 0 && t2 > 1 && !nodesMap.current.has(t2) && Math.random() < 0.9) {
-                    const n2 = addNode(t2, tip, false);
-                    newTips.push(n2);
-                }
-            }
-        }
-        
-        // Randomly cull some tips if we have too many so it doesn't explode
-        if (newTips.length > 25) {
-            newTips = newTips.sort(() => Math.random() - 0.5).slice(0, 20);
-        }
-        branchTips = newTips;
-
-        // Auto follow the newest main path node
-        const canvas = canvasRef.current;
-        if (canvas) {
-          const height = canvas.height;
-          const k = 1.2; 
-          cameraTargetRef.current = {
-            x: -node.x * k,
-            y: -height * 0.4 - node.y * k,
-            k: k
-          };
+        if (nodesMap.current.size < 12000) {
+          let newTips: Node[] = [];
+          for (const tip of branchTips) {
+              if (nodesMap.current.size > 12000) break; // prevent lag
+              
+              const t1 = tip.id * 2;
+              const t2 = (tip.id - 1) / 3;
+              
+              let pushed = false;
+              if (!nodesMap.current.has(t1)) {
+                  if (Math.random() < 0.8) {
+                      const n1 = addNode(t1, tip, false);
+                      newTips.push(n1);
+                      pushed = true;
+                  } else {
+                      newTips.push(tip); // keep tip alive to try again next frame
+                      pushed = true;
+                  }
+              }
+              if (tip.id > 4 && (tip.id - 1) % 3 === 0) {
+                  if (t2 % 2 !== 0 && t2 > 1 && !nodesMap.current.has(t2)) {
+                      if (Math.random() < 0.9) {
+                          const n2 = addNode(t2, tip, false);
+                          newTips.push(n2);
+                      } else if (!pushed) {
+                          newTips.push(tip);
+                      }
+                  }
+              }
+          }
+          
+          // Randomly cull some tips if we have too many so it doesn't explode
+          if (newTips.length > 150) {
+              newTips = newTips.sort(() => Math.random() - 0.5).slice(0, 100);
+          }
+          branchTips = newTips;
         }
 
         step++;
-        activeTaskRef.current.timeoutId = window.setTimeout(nextStep, 250);
+        
+        if (step < pathSeq.length || branchTips.length > 0) {
+           activeTaskRef.current.timeoutId = window.setTimeout(nextStep, 250);
+        } else {
+           activeTaskRef.current.isRunning = false;
+        }
       };
 
       const canvas = canvasRef.current;
@@ -357,6 +414,9 @@ const CollatzTree = forwardRef<CollatzTreeRef, {}>((_props, ref) => {
 
       // We just reset the target so the light can pick it up in draw()
       // cameraTargetRef will be set continuously in draw() during the pulse
+    },
+    setExploreMode: (explore: boolean) => {
+      isExploreModeRef.current = explore;
     }
   }));
 
@@ -413,7 +473,7 @@ const CollatzTree = forwardRef<CollatzTreeRef, {}>((_props, ref) => {
           pointerEvents: 'none',
           textShadow: '0 0 8px rgba(0, 184, 255, 0.5)'
         }}>
-          Climbing the tree...
+          climbing the tree...
         </div>
       )}
     </div>
