@@ -1,11 +1,24 @@
 # collatz-visualizer
 
-a web app for the wholesome unsolved math problem
+## a web app for [the wholesome unsolved math problem](https://en.wikipedia.org/wiki/Collatz_conjecture)
+we plant and grow the tree after you pick a number and then a light travels down the path to one if you want or you can just explore freely
 
-we draw a tree so you can type a number and it moves the camera to the node and then a light travels down the path to one
+## the math
+- start with any positive whole number
+- if it is even cut it in half
+- if it is odd multiply by three and add one
+- keep doing this for each new number you get
+- this seems to always goes to one
+- no one really knows why
 
-to use it locally you can git clone the repository then cd app and npm install and finally npm run dev
+## local install
+- `git clone git@github.com:jordan-lenchitz/collatz-visualizer.git`
+- `cd app` 
+- `npm install`
+- `npm run dev`
 
-to deploy it you can get a cloudflare token and then cd app and npm run build and finally npx wrangler pages deploy dist
-
-the math rules go we start with any number if it is even cut it in half if it is odd multiply by three and add one do that long enough and it always goes to one 
+## cloudflare deployment
+- `export CLOUDFLARE_API_TOKEN="your_api_token"`
+- `cd app`
+- `npm run build`
+- `npx wrangler pages deploy dist`
