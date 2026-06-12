@@ -68,7 +68,7 @@
   font-weight: 600;
   font-size: 1rem;
   cursor: pointer;
-  text-transform: uppercase;
+  text-transform: none;
   letter-spacing: 1px;
   transition: all 0.3s ease;
   box-shadow: inset 0 0 10px rgba(0, 255, 170, 0.1);
@@ -107,4 +107,25 @@
   background: -webkit-linear-gradient(0deg, var(--primary-glow), var(--secondary-glow));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+}
+
+.subtitle {
+  margin-top: 15px;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.rule-text {
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 400;
+  background: -webkit-linear-gradient(0deg, var(--primary-glow), var(--secondary-glow));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.bottom-text {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.9rem;
+  display: inline-block;
+  margin-top: 8px;
 }
