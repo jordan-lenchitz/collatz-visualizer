@@ -14,85 +14,7 @@
   z-index: 1;
 }
 
-.ui-overlay {
-  position: absolute;
-  bottom: 40px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10;
-  display: flex;
-  gap: 12px;
-  background: var(--panel-bg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  padding: 16px 24px;
-  border-radius: 30px;
-  border: 1px solid var(--panel-border);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 255, 170, 0.1);
-  transition: box-shadow 0.3s ease;
-}
-
-.ui-overlay:focus-within {
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 30px rgba(0, 255, 170, 0.3);
-}
-
-.seed-input {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 20px;
-  padding: 12px 20px;
-  color: white;
-  font-family: 'Outfit', sans-serif;
-  font-size: 1.1rem;
-  width: 200px;
-  outline: none;
-  transition: all 0.3s ease;
-}
-
-.seed-input:focus {
-  border-color: var(--primary-glow);
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.seed-input::placeholder {
-  color: rgba(255, 255, 255, 0.4);
-}
-
-.action-btn {
-  background: linear-gradient(135deg, rgba(0, 255, 170, 0.2), rgba(0, 184, 255, 0.2));
-  border: 1px solid var(--primary-glow);
-  border-radius: 20px;
-  padding: 0 24px;
-  color: var(--primary-glow);
-  font-family: 'Outfit', sans-serif;
-  font-weight: 600;
-  font-size: 1rem;
-  cursor: pointer;
-  text-transform: none;
-  letter-spacing: 1px;
-  transition: all 0.3s ease;
-  box-shadow: inset 0 0 10px rgba(0, 255, 170, 0.1);
-}
-
-.action-btn:hover {
-  background: linear-gradient(135deg, rgba(0, 255, 170, 0.4), rgba(0, 184, 255, 0.4));
-  box-shadow: 0 0 20px rgba(0, 255, 170, 0.4), inset 0 0 15px rgba(0, 255, 170, 0.3);
-  text-shadow: 0 0 8px rgba(0, 255, 170, 0.8);
-  transform: translateY(-1px);
-}
-
-.action-btn:active {
-  transform: translateY(1px);
-}
-
-.action-btn.explore-active {
-  background: linear-gradient(135deg, rgba(255, 170, 0, 0.4), rgba(255, 0, 184, 0.4));
-  border-color: #ff00b8;
-  color: #ff00b8;
-  box-shadow: 0 0 20px rgba(255, 0, 184, 0.4), inset 0 0 15px rgba(255, 0, 184, 0.3);
-  text-shadow: 0 0 8px rgba(255, 0, 184, 0.8);
-}
-
+/* Original Title Overlay */
 .title-overlay {
   position: absolute;
   top: 30px;
@@ -153,14 +75,115 @@
   color: rgba(255, 255, 255, 0.8);
 }
 
-.app-container.light .wiki-link {
-  color: rgba(0, 0, 0, 0.4);
+/* Mobile responsive adjustments */
+@media (max-width: 768px) {
+  .title-overlay {
+    top: 15px;
+    right: 15px;
+  }
+  .title-overlay h1 {
+    font-size: 1.5rem;
+  }
+  .subtitle {
+    font-size: 0.8rem;
+  }
 }
 
-.app-container.light .wiki-link:hover {
-  color: rgba(0, 0, 0, 0.8);
+/* Original UI Overlay (Bottom Center) */
+.ui-overlay {
+  position: absolute;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  gap: 12px;
+  background: var(--panel-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 16px 24px;
+  border-radius: 30px;
+  border: 1px solid var(--panel-border);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 255, 170, 0.1);
+  transition: box-shadow 0.3s ease;
 }
 
+@media (max-width: 768px) {
+  .ui-overlay {
+    bottom: 15px;
+    width: 90vw;
+    flex-direction: column;
+    padding: 15px;
+    box-sizing: border-box;
+    border-radius: 20px;
+  }
+}
+
+.seed-input {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 12px 20px;
+  color: white;
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.1rem;
+  width: 200px;
+  outline: none;
+  transition: all 0.3s ease;
+}
+
+@media (max-width: 768px) {
+  .seed-input {
+    width: 100%;
+    box-sizing: border-box;
+  }
+}
+
+.seed-input:focus {
+  border-color: var(--primary-glow);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.seed-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.action-btn {
+  background: linear-gradient(135deg, rgba(0, 255, 170, 0.2), rgba(0, 184, 255, 0.2));
+  border: 1px solid var(--primary-glow);
+  border-radius: 20px;
+  padding: 12px 24px;
+  color: var(--primary-glow);
+  font-family: 'Outfit', sans-serif;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  text-transform: none; /* Already lowercase but just in case */
+  letter-spacing: 1px;
+  transition: all 0.3s ease;
+  box-shadow: inset 0 0 10px rgba(0, 255, 170, 0.1);
+}
+
+.action-btn:hover {
+  background: linear-gradient(135deg, rgba(0, 255, 170, 0.4), rgba(0, 184, 255, 0.4));
+  box-shadow: 0 0 20px rgba(0, 255, 170, 0.4), inset 0 0 15px rgba(0, 255, 170, 0.3);
+  text-shadow: 0 0 8px rgba(0, 255, 170, 0.8);
+  transform: translateY(-1px);
+}
+
+.action-btn:active {
+  transform: translateY(1px);
+}
+
+.action-btn.explore-active {
+  background: linear-gradient(135deg, rgba(255, 170, 0, 0.4), rgba(255, 0, 184, 0.4));
+  border-color: #ff00b8;
+  color: #ff00b8;
+  box-shadow: 0 0 20px rgba(255, 0, 184, 0.4), inset 0 0 15px rgba(255, 0, 184, 0.3);
+  text-shadow: 0 0 8px rgba(255, 0, 184, 0.8);
+}
+
+/* Original Controls Overlay (Bottom Right) */
 .controls-overlay {
   position: absolute;
   bottom: 40px;
@@ -168,7 +191,7 @@
   z-index: 10;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   background: var(--panel-bg);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -180,38 +203,37 @@
   width: 220px;
 }
 
-.app-container.light .controls-overlay {
-  background: rgba(255, 255, 255, 0.8);
-  border-color: rgba(0, 0, 0, 0.2);
-  color: black;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+/* Mobile Fix for overlap: push controls above the ui overlay */
+@media (max-width: 768px) {
+  .controls-overlay {
+    bottom: 220px; /* Above the bottom center UI overlay */
+    right: 50%;
+    transform: translateX(50%);
+    width: 90vw;
+    box-sizing: border-box;
+    max-width: 320px;
+    padding: 15px;
+    gap: 8px;
+  }
 }
 
 .controls-overlay button {
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.2);
   color: inherit;
-  padding: 10px 16px;
+  padding: 8px 16px;
   border-radius: 12px;
   cursor: pointer;
   font-family: inherit;
   font-size: 0.95rem;
   font-weight: 600;
   transition: all 0.2s;
-}
-
-.app-container.light .controls-overlay button {
-  background: rgba(0, 0, 0, 0.05);
-  border-color: rgba(0, 0, 0, 0.1);
+  text-transform: lowercase;
 }
 
 .controls-overlay button:hover {
   background: rgba(255, 255, 255, 0.2);
   transform: translateY(-1px);
-}
-
-.app-container.light .controls-overlay button:hover {
-  background: rgba(0, 0, 0, 0.1);
 }
 
 .controls-overlay button:active {
@@ -221,9 +243,14 @@
 .slider-container {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
   font-size: 0.85rem;
   font-weight: 500;
+}
+
+.slider-container label {
+  text-transform: lowercase;
+  color: rgba(255,255,255,0.7);
 }
 
 .slider-container input[type=range] {
@@ -231,26 +258,103 @@
   accent-color: var(--primary-glow);
 }
 
-.slider-labels {
+.lowcase-select {
+  background: rgba(0,0,0,0.2);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: white;
+  padding: 6px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  text-transform: lowercase;
+  outline: none;
+}
+
+/* Plan Overlay */
+.plan-overlay {
+  position: absolute;
+  top: 30px;
+  left: 40px;
+  z-index: 10;
   display: flex;
-  justify-content: space-between;
-  font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.6);
-  padding: 0 4px;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--panel-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 20px;
+  border-radius: 20px;
+  border: 1px solid var(--panel-border);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  color: white;
+  width: 240px;
+  max-height: 50vh;
 }
 
-.app-container.light .slider-labels {
-  color: rgba(0, 0, 0, 0.6);
+@media (max-width: 768px) {
+  .plan-overlay {
+    top: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 90vw;
+    box-sizing: border-box;
+    max-width: 320px;
+  }
 }
 
+.plan-title {
+  font-weight: 700;
+  color: var(--primary-glow);
+  margin-bottom: 5px;
+}
+
+.plan-stat {
+  font-size: 0.9rem;
+  color: rgba(255,255,255,0.8);
+}
+
+.step-list-mini {
+  flex: 1;
+  overflow-y: auto;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  padding: 5px;
+  background: rgba(0,0,0,0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.plan-step {
+  font-family: monospace;
+  font-size: 0.8rem;
+  padding: 4px;
+  cursor: pointer;
+  border-radius: 4px;
+  border: 1px solid transparent;
+}
+
+.plan-step:hover {
+  background: rgba(255,255,255,0.1);
+}
+
+.plan-step.hovered {
+  border-color: var(--primary-glow);
+  color: var(--primary-glow);
+}
+
+/* Light Mode Overrides */
 .app-container.light {
   background-color: #ffffff;
   color: #000000;
 }
 
-.app-container.light .ui-overlay {
+.app-container.light .ui-overlay,
+.app-container.light .controls-overlay,
+.app-container.light .plan-overlay {
   background: rgba(255, 255, 255, 0.8);
   border-color: rgba(0, 0, 0, 0.2);
+  color: black;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 }
 
@@ -283,4 +387,69 @@
 
 .app-container.light .bottom-text {
   color: rgba(0, 0, 0, 0.5);
+}
+
+.app-container.light .controls-overlay button,
+.app-container.light .plan-overlay button {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+.app-container.light .controls-overlay button:hover,
+.app-container.light .plan-overlay button:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.app-container.light .slider-container label {
+  color: rgba(0,0,0,0.7);
+}
+
+.app-container.light .lowcase-select {
+  background: rgba(0,0,0,0.05);
+  border-color: rgba(0,0,0,0.2);
+  color: black;
+}
+
+.app-container.light .step-list-mini {
+  background: rgba(0,0,0,0.05);
+  border-color: rgba(0,0,0,0.2);
+}
+
+/* Tooltip styles */
+.canvas-tooltip {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 10px;
+  backdrop-filter: blur(12px);
+  width: 180px;
+  color: white;
+}
+.app-container.light .canvas-tooltip {
+  background: rgba(255,255,255,0.8);
+  color: black;
+  border-color: rgba(0,0,0,0.2);
+}
+.tooltip-header {
+  border-bottom: 1px solid rgba(255,255,255,0.2);
+  padding-bottom: 4px;
+  margin-bottom: 4px;
+  font-weight: 700;
+  display: flex;
+  justify-content: space-between;
+}
+.app-container.light .tooltip-header {
+  border-bottom-color: rgba(0,0,0,0.2);
+}
+.tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  margin-bottom: 2px;
+}
+.tooltip-footer {
+  margin-top: 6px;
+  font-size: 0.7rem;
+  opacity: 0.7;
+  text-align: center;
 }
