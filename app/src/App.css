@@ -96,9 +96,10 @@
 .title-overlay {
   position: absolute;
   top: 30px;
-  left: 40px;
+  right: 40px;
   z-index: 10;
   pointer-events: none;
+  text-align: right;
 }
 
 .title-overlay h1 {
@@ -136,4 +137,150 @@
   font-size: 0.9rem;
   display: inline-block;
   margin-top: 8px;
+}
+
+.wiki-link {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.8rem;
+  display: inline-block;
+  margin-top: 4px;
+  text-decoration: underline;
+  pointer-events: auto;
+  transition: color 0.2s;
+}
+
+.wiki-link:hover {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.app-container.light .wiki-link {
+  color: rgba(0, 0, 0, 0.4);
+}
+
+.app-container.light .wiki-link:hover {
+  color: rgba(0, 0, 0, 0.8);
+}
+
+.controls-overlay {
+  position: absolute;
+  bottom: 40px;
+  right: 40px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: var(--panel-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 20px;
+  border-radius: 20px;
+  border: 1px solid var(--panel-border);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  color: white;
+  width: 220px;
+}
+
+.app-container.light .controls-overlay {
+  background: rgba(255, 255, 255, 0.8);
+  border-color: rgba(0, 0, 0, 0.2);
+  color: black;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+.controls-overlay button {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: inherit;
+  padding: 10px 16px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.app-container.light .controls-overlay button {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+.controls-overlay button:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+.app-container.light .controls-overlay button:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.controls-overlay button:active {
+  transform: translateY(1px);
+}
+
+.slider-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.slider-container input[type=range] {
+  width: 100%;
+  accent-color: var(--primary-glow);
+}
+
+.slider-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.6);
+  padding: 0 4px;
+}
+
+.app-container.light .slider-labels {
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.app-container.light {
+  background-color: #ffffff;
+  color: #000000;
+}
+
+.app-container.light .ui-overlay {
+  background: rgba(255, 255, 255, 0.8);
+  border-color: rgba(0, 0, 0, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+.app-container.light .seed-input {
+  color: black;
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
+.app-container.light .seed-input::placeholder {
+  color: rgba(0, 0, 0, 0.5);
+}
+
+.app-container.light .title-overlay h1 {
+  text-shadow: none;
+  color: #000000;
+}
+
+.app-container.light .title-overlay h1 span {
+  background: -webkit-linear-gradient(0deg, #009650, #0064c8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.app-container.light .rule-text {
+  background: -webkit-linear-gradient(0deg, #009650, #0064c8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.app-container.light .bottom-text {
+  color: rgba(0, 0, 0, 0.5);
 }

@@ -17,7 +17,17 @@ interface Node {
   isMainPath: boolean;
 }
 
-const CollatzTree = forwardRef<CollatzTreeRef, {}>((_props, ref) => {
+interface CollatzTreeProps {
+  speed: number;
+  isPaused: boolean;
+  palette: 'dark' | 'light';
+}
+
+const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) => {
+  const propsRef = useRef(props);
+  useEffect(() => {
+    propsRef.current = props;
+  }, [props]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
@@ -32,6 +42,7 @@ const CollatzTree = forwardRef<CollatzTreeRef, {}>((_props, ref) => {
   const activePathRef = useRef<{ nodes: Node[], progress: number } | null>(null);
   const isExploreModeRef = useRef(false);
   const [isAnimating, setIsAnimating] = useState(false);
+  const lastTimeRef = useRef<number>(0);
 
   const initSingleNode = () => {
     nodesMap.current.clear();
@@ -119,7 +130,9 @@ const CollatzTree = forwardRef<CollatzTreeRef, {}>((_props, ref) => {
     return node;
   };
 
-  const draw = () => {
+  const draw = (time: number) => {
+    const dt = lastTimeRef.current ? (time - lastTimeRef.current) : 16.6;
+    lastTimeRef.current = time;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -152,70 +165,115 @@ const CollatzTree = forwardRef<CollatzTreeRef, {}>((_props, ref) => {
     ctx.save();
     
     const t = transformRef.current;
-    ctx.translate(width / 2 + t.x, height * 0.8 + t.y);
+    ctx.translate(t.x, t.y);
     ctx.scale(t.k, t.k);
 
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     
+    const minX = -t.x / t.k - 50;
+    const maxX = (width - t.x) / t.k + 50;
+    const minY = -t.y / t.k - 50;
+    const maxY = (height - t.y) / t.k + 50;
+
+    const isVisible = (x: number, y: number) => {
+      return x >= minX && x <= maxX && y >= minY && y <= maxY;
+    };
+    
+    const colors = propsRef.current.palette === 'light' ? {
+         sideEdge: 'rgba(0, 150, 80, 0.4)',
+         mainEdge: 'rgba(0, 100, 200, 0.8)',
+         sideNodeFill: '#ffffff',
+         sideNodeStroke: 'rgba(0, 150, 80, 0.6)',
+         sideText: 'rgba(0, 0, 0, 0.7)',
+         mainNodeFill: '#ffffff',
+         mainNodeStroke: '#0064c8',
+         mainText: '#000000',
+         activePath: 'rgba(0, 0, 0, 0.5)',
+         pulseFill: '#000000',
+         pulseShadow: '#00cc66'
+    } : {
+         sideEdge: 'rgba(0, 255, 170, 0.4)',
+         mainEdge: 'rgba(0, 184, 255, 0.8)',
+         sideNodeFill: '#0a0a0a',
+         sideNodeStroke: 'rgba(0, 255, 170, 0.6)',
+         sideText: 'rgba(255, 255, 255, 0.7)',
+         mainNodeFill: '#0a0a0a',
+         mainNodeStroke: '#00b8ff',
+         mainText: '#ffffff',
+         activePath: 'rgba(255, 255, 255, 0.5)',
+         pulseFill: '#ffffff',
+         pulseShadow: '#00ffaa'
+    };
+
+    ctx.beginPath();
     for (const edge of edges.current) {
       if (!edge.isMain) {
-        ctx.beginPath();
+        if (!isVisible(edge.source.x, edge.source.y) && !isVisible(edge.target.x, edge.target.y)) continue;
         ctx.moveTo(edge.source.x, edge.source.y);
         ctx.lineTo(edge.target.x, edge.target.y);
-        ctx.strokeStyle = 'rgba(0, 255, 170, 0.4)';
-        ctx.lineWidth = 1.5 / t.k;
-        ctx.stroke();
       }
     }
+    ctx.strokeStyle = colors.sideEdge;
+    ctx.lineWidth = 1.5 / t.k;
+    ctx.stroke();
     
+    ctx.beginPath();
     for (const edge of edges.current) {
       if (edge.isMain) {
-        ctx.beginPath();
+        if (!isVisible(edge.source.x, edge.source.y) && !isVisible(edge.target.x, edge.target.y)) continue;
         ctx.moveTo(edge.source.x, edge.source.y);
         ctx.lineTo(edge.target.x, edge.target.y);
-        ctx.strokeStyle = 'rgba(0, 184, 255, 0.8)';
-        ctx.lineWidth = 3 / t.k;
-        ctx.stroke();
       }
     }
+    ctx.strokeStyle = colors.mainEdge;
+    ctx.lineWidth = 3 / t.k;
+    ctx.stroke();
 
-
-
+    ctx.beginPath();
     for (const node of nodesMap.current.values()) {
-      if (!node.isMainPath) {
-        ctx.beginPath();
+      if (!node.isMainPath && isVisible(node.x, node.y)) {
+        ctx.moveTo(node.x + 10, node.y);
         ctx.arc(node.x, node.y, 10, 0, Math.PI * 2);
-        ctx.fillStyle = '#0a0a0a';
-        ctx.fill();
-        
-        ctx.lineWidth = 2 / t.k;
-        ctx.strokeStyle = 'rgba(0, 255, 170, 0.6)';
-        ctx.stroke();
+      }
+    }
+    ctx.fillStyle = colors.sideNodeFill;
+    ctx.fill();
+    ctx.lineWidth = 2 / t.k;
+    ctx.strokeStyle = colors.sideNodeStroke;
+    ctx.stroke();
 
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-        ctx.font = `${8}px 'Inter', sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(node.id.toString(), node.x, node.y);
+    if (t.k > 0.8) {
+      ctx.fillStyle = colors.sideText;
+      ctx.font = `${8}px 'Inter', sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      for (const node of nodesMap.current.values()) {
+        if (!node.isMainPath && isVisible(node.x, node.y)) {
+          ctx.fillText(node.id.toString(), node.x, node.y);
+        }
       }
     }
 
+    ctx.beginPath();
     for (const node of nodesMap.current.values()) {
-      if (node.isMainPath) {
-        ctx.beginPath();
+      if (node.isMainPath && isVisible(node.x, node.y)) {
+        ctx.moveTo(node.x + 16, node.y);
         ctx.arc(node.x, node.y, 16, 0, Math.PI * 2);
-        ctx.fillStyle = '#0a0a0a';
-        ctx.fill();
-        
-        ctx.lineWidth = 2 / t.k;
-        ctx.strokeStyle = '#00b8ff';
-        ctx.stroke();
+      }
+    }
+    ctx.fillStyle = colors.mainNodeFill;
+    ctx.fill();
+    ctx.lineWidth = 2 / t.k;
+    ctx.strokeStyle = colors.mainNodeStroke;
+    ctx.stroke();
 
-        ctx.fillStyle = '#ffffff';
-        ctx.font = `${12}px 'Inter', sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
+    ctx.fillStyle = colors.mainText;
+    ctx.font = `${12}px 'Inter', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (const node of nodesMap.current.values()) {
+      if (node.isMainPath && isVisible(node.x, node.y)) {
         ctx.fillText(node.id.toString(), node.x, node.y);
       }
     }
@@ -229,7 +287,7 @@ const CollatzTree = forwardRef<CollatzTreeRef, {}>((_props, ref) => {
       for(let i = 1; i < nodes.length; i++) {
         ctx.lineTo(nodes[i].x, nodes[i].y);
       }
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.strokeStyle = colors.activePath;
       ctx.lineWidth = 4 / t.k;
       ctx.stroke();
       
@@ -244,8 +302,8 @@ const CollatzTree = forwardRef<CollatzTreeRef, {}>((_props, ref) => {
         
         ctx.beginPath();
         ctx.arc(px, py, 6 / t.k, 0, Math.PI * 2);
-        ctx.fillStyle = '#ffffff';
-        ctx.shadowColor = '#00ffaa';
+        ctx.fillStyle = colors.pulseFill;
+        ctx.shadowColor = colors.pulseShadow;
         ctx.shadowBlur = 20 / t.k;
         ctx.fill();
         ctx.shadowBlur = 0;
@@ -253,15 +311,19 @@ const CollatzTree = forwardRef<CollatzTreeRef, {}>((_props, ref) => {
         // Auto follow the light!
         const targetK = 1.5; // nice zoomed-in level for the light
         cameraTargetRef.current = {
-          x: -px * targetK,
-          y: -height * 0.3 - py * targetK, // Try to keep light somewhat near the bottom center
+          x: width / 2 - px * targetK,
+          y: height * 0.5 - py * targetK, // Try to keep light somewhat near the vertical center
           k: targetK
         };
       }
 
-      active.progress += 0.03; // slower pulse speed
-      if (active.progress >= nodes.length - 1) {
-         active.progress = nodes.length - 1;
+      if (!propsRef.current.isPaused) {
+        const baseSpeed = [0.4, 0.15, 0.05, 0.015, 0.005][propsRef.current.speed - 1] || 0.05;
+        // Normalize speed so it runs smoothly even if the frame rate drops
+        active.progress += baseSpeed * (dt / 16.6);
+        if (active.progress >= nodes.length - 1) {
+           active.progress = nodes.length - 1;
+        }
       }
     }
 
@@ -306,6 +368,47 @@ const CollatzTree = forwardRef<CollatzTreeRef, {}>((_props, ref) => {
         if (step >= pathSeq.length && !isMainBuilt) {
           isMainBuilt = true;
           setIsAnimating(false);
+          
+          // Instantly finish the arboreal growth so it's fully rendered for the light pulse
+          const targetNodes = Math.min(12000, pathSeq.length * 100);
+          let panic = 0;
+          while (branchTips.length > 0 && nodesMap.current.size < targetNodes && panic < 200) {
+              let newTips: Node[] = [];
+              for (const tip of branchTips) {
+                  if (nodesMap.current.size > targetNodes) break;
+                  
+                  const t1 = tip.id * 2;
+                  const t2 = (tip.id - 1) / 3;
+                  
+                  let pushed = false;
+                  if (!nodesMap.current.has(t1)) {
+                      if (Math.random() < 0.8) {
+                          const n1 = addNode(t1, tip, false);
+                          newTips.push(n1);
+                          pushed = true;
+                      } else {
+                          newTips.push(tip);
+                          pushed = true;
+                      }
+                  }
+                  if (tip.id > 4 && (tip.id - 1) % 3 === 0) {
+                      if (t2 % 2 !== 0 && t2 > 1 && !nodesMap.current.has(t2)) {
+                          if (Math.random() < 0.9) {
+                              const n2 = addNode(t2, tip, false);
+                              newTips.push(n2);
+                          } else if (!pushed) {
+                              newTips.push(tip);
+                          }
+                      }
+                  }
+              }
+              if (newTips.length > 150) {
+                  newTips = newTips.sort(() => Math.random() - 0.5).slice(0, 100);
+              }
+              branchTips = newTips;
+              panic++;
+          }
+          
           onComplete();
         }
 
@@ -328,21 +431,23 @@ const CollatzTree = forwardRef<CollatzTreeRef, {}>((_props, ref) => {
 
           const canvas = canvasRef.current;
           if (canvas) {
+            const width = canvas.width;
             const height = canvas.height;
             const k = 1.2; 
             cameraTargetRef.current = {
-              x: -node.x * k,
-              y: -height * 0.4 - node.y * k,
+              x: width / 2 - node.x * k,
+              y: height * 0.4 - node.y * k,
               k: k
             };
           }
         }
 
         // Advance all active side branches by one step alongside the main path
-        if (nodesMap.current.size < 12000) {
+        const dynamicMax = Math.min(12000, pathSeq.length * 100);
+        if (nodesMap.current.size < dynamicMax) {
           let newTips: Node[] = [];
           for (const tip of branchTips) {
-              if (nodesMap.current.size > 12000) break; // prevent lag
+              if (nodesMap.current.size > dynamicMax) break; // prevent lag
               
               const t1 = tip.id * 2;
               const t2 = (tip.id - 1) / 3;
@@ -379,7 +484,7 @@ const CollatzTree = forwardRef<CollatzTreeRef, {}>((_props, ref) => {
 
         step++;
         
-        if (step < pathSeq.length || branchTips.length > 0) {
+        if (step <= pathSeq.length) {
            activeTaskRef.current.timeoutId = window.setTimeout(nextStep, 250);
         } else {
            activeTaskRef.current.isRunning = false;
@@ -389,8 +494,8 @@ const CollatzTree = forwardRef<CollatzTreeRef, {}>((_props, ref) => {
       const canvas = canvasRef.current;
       if (canvas) {
         cameraTargetRef.current = {
-           x: 0,
-           y: -canvas.height * 0.4,
+           x: canvas.width / 2,
+           y: canvas.height * 0.4,
            k: 1.2
         };
       }
@@ -443,10 +548,14 @@ const CollatzTree = forwardRef<CollatzTreeRef, {}>((_props, ref) => {
 
     d3.select(canvas).call(zoom as any);
     
+    const initialTransform = d3.zoomIdentity.translate(canvas.width / 2, canvas.height * 0.8);
+    transformRef.current = initialTransform;
+    (canvas as any).__zoom = initialTransform;
+
     // Initial camera position
     cameraTargetRef.current = {
-       x: 0,
-       y: -canvas.height * 0.4,
+       x: canvas.width / 2,
+       y: canvas.height * 0.4,
        k: 1.2
     };
 
@@ -465,13 +574,14 @@ const CollatzTree = forwardRef<CollatzTreeRef, {}>((_props, ref) => {
       {isAnimating && (
         <div style={{
           position: 'absolute',
-          bottom: '20px',
-          left: '20px',
+          top: '210px',
+          right: '40px',
           color: '#00b8ff',
           fontFamily: 'monospace',
           fontSize: '14px',
           pointerEvents: 'none',
-          textShadow: '0 0 8px rgba(0, 184, 255, 0.5)'
+          textShadow: '0 0 8px rgba(0, 184, 255, 0.5)',
+          textAlign: 'right'
         }}>
           climbing the tree...
         </div>

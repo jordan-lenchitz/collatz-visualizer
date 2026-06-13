@@ -6,6 +6,11 @@ function App() {
   const [seed, setSeed] = useState<string>('27');
   const [treeState, setTreeState] = useState<'IDLE' | 'BUILDING' | 'BUILT'>('IDLE');
   const [isExploreMode, setIsExploreMode] = useState(false);
+  
+  const [speed, setSpeed] = useState(3);
+  const [isPaused, setIsPaused] = useState(false);
+  const [palette, setPalette] = useState<'dark' | 'light'>('dark');
+  
   const treeRef = useRef<CollatzTreeRef>(null);
 
   const handleAction = () => {
@@ -39,17 +44,20 @@ function App() {
   };
 
   return (
-    <div className="app-container">
+    <div className={`app-container ${palette}`}>
       <div className="title-overlay">
         <h1><span>collatz</span> visualizer</h1>
         <div className="subtitle">
           <span className="rule-text">if even divide by two</span><br/>
           <span className="rule-text">if odd multiply by three and add one</span><br/>
-          <span className="bottom-text">we always seem to get to one at the end</span>
+          <span className="bottom-text">we always seem to get to one at the end</span><br/>
+          <a href="https://en.wikipedia.org/wiki/Collatz_conjecture" target="_blank" rel="noopener noreferrer" className="wiki-link">
+            see wikipedia for more
+          </a>
         </div>
       </div>
       
-      <CollatzTree ref={treeRef} />
+      <CollatzTree ref={treeRef} speed={speed} isPaused={isPaused} palette={palette} />
 
       <div className="ui-overlay">
         <input 
@@ -77,6 +85,26 @@ function App() {
         >
           {isExploreMode ? 'stop exploring (auto-follow)' : 'explore freely'}
         </button>
+      </div>
+      
+      <div className="controls-overlay">
+         <button onClick={() => setIsPaused(!isPaused)}>
+           {isPaused ? 'resume animation' : 'pause to admire'}
+         </button>
+         
+         <div className="slider-container">
+           <label>speed of descent to one</label>
+           <input type="range" min="1" max="5" value={speed} onChange={e => setSpeed(parseInt(e.target.value))} />
+           <div className="slider-labels">
+             <span>faster</span>
+             <span>...</span>
+             <span>slower</span>
+           </div>
+         </div>
+
+         <button onClick={() => setPalette(p => p === 'dark' ? 'light' : 'dark')}>
+           {palette === 'dark' ? 'toggle light mode' : 'toggle dark mode'}
+         </button>
       </div>
     </div>
   );
