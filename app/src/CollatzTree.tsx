@@ -682,7 +682,7 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       }
 
       if (!propsRef.current.isPaused) {
-        const baseSpeed = [0.45, 0.22, 0.08, 0.024, 0.007][propsRef.current.speed - 1] || 0.08;
+        const baseSpeed = [0.11, 0.055, 0.02, 0.006, 0.0017][propsRef.current.speed - 1] || 0.02;
         active.progress += baseSpeed * (dt / 16.6);
         if (active.progress >= nodes.length - 1) {
            active.progress = nodes.length - 1;
