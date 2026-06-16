@@ -19,6 +19,7 @@ function App() {
   
   const [hoveredNodeId, setHoveredNodeId] = useState<number | null>(null);
   const [isPlanMode, setIsPlanMode] = useState(false);
+  const [showControls, setShowControls] = useState(false);
   const [sequence, setSequence] = useState<number[]>([]);
 
   const treeRef = useRef<CollatzTreeRef>(null);
@@ -107,30 +108,6 @@ function App() {
         onSelectNode={handleSelectNode}
       />
 
-      {isPlanMode && (
-        <div className="plan-overlay">
-          <div className="plan-title">analysis for seed {sequence[0] || seed}</div>
-          <div className="plan-stat">peak value: {maxVal}</div>
-          <div className="plan-stat">path length: {sequence.length - 1}</div>
-          <div className="step-list-mini">
-            {sequence.map((val, idx) => {
-              const isHovered = hoveredNodeId === val;
-              return (
-                <div 
-                  key={idx} 
-                  className={`plan-step ${isHovered ? 'hovered' : ''}`}
-                  onMouseEnter={() => setHoveredNodeId(val)} 
-                  onMouseLeave={() => setHoveredNodeId(null)} 
-                  onClick={() => { handleSelectNode(val); treeRef.current?.focusOnNode(val); }}
-                >
-                  step {idx}: {val} <span style={{opacity: 0.5}}>{val % 2 === 0 ? '(even)' : '(odd)'}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
       <div className="ui-overlay">
         <input 
           type="number" 
@@ -158,42 +135,76 @@ function App() {
           {isExploreMode ? 'stop exploring (auto-follow)' : 'explore freely'}
         </button>
       </div>
-      
-      <div className="controls-overlay">
-         <button onClick={() => setIsPlanMode(!isPlanMode)}>
-           {isPlanMode ? 'hide plan mode' : 'show plan mode'}
-         </button>
 
-         <button onClick={() => setIsPaused(!isPaused)}>
-           {isPaused ? 'resume animation' : 'pause to admire'}
-         </button>
-         
-         <div className="slider-container">
-           <label>speed of descent to one</label>
-           <input type="range" min="1" max="5" value={speed} onChange={e => setSpeed(parseInt(e.target.value))} />
-         </div>
+      <div className="top-left-container">
+        <button className="collapse-toggle" onClick={() => setShowControls(!showControls)}>
+          {showControls ? 'hide controls ⚙️' : 'show controls ⚙️'}
+        </button>
 
-         <div className="slider-container">
-           <label>tree layout mode</label>
-           <select className="lowcase-select" value={layoutMode} onChange={e => setLayoutMode(e.target.value as any)}>
-             <option value="organic">organic</option>
-             <option value="radial">celestial</option>
-             <option value="symmetric">symmetric</option>
-             <option value="force">force galaxy</option>
-           </select>
-         </div>
+        {showControls && (
+          <div className="expanded-controls-grid">
+            <div className="controls-overlay-mobile">
+               <button onClick={() => setIsPlanMode(!isPlanMode)}>
+                 {isPlanMode ? 'hide plan mode' : 'show plan mode'}
+               </button>
 
-         <div className="slider-container">
-           <label>branch drawing style</label>
-           <select className="lowcase-select" value={edgeStyle} onChange={e => setEdgeStyle(e.target.value as any)}>
-             <option value="curved">curved lines</option>
-             <option value="straight">straight lines</option>
-           </select>
-         </div>
+               <button onClick={() => setIsPaused(!isPaused)}>
+                 {isPaused ? 'resume animation' : 'pause to admire'}
+               </button>
+               
+               <div className="slider-container">
+                 <label>speed of descent to one</label>
+                 <input type="range" min="1" max="5" value={speed} onChange={e => setSpeed(parseInt(e.target.value))} />
+               </div>
 
-         <button onClick={() => setPalette(p => p === 'dark' ? 'light' : 'dark')}>
-           {palette === 'dark' ? 'toggle light mode' : 'toggle dark mode'}
-         </button>
+               <div className="slider-container">
+                 <label>tree layout mode</label>
+                 <select className="lowcase-select" value={layoutMode} onChange={e => setLayoutMode(e.target.value as any)}>
+                   <option value="organic">organic</option>
+                   <option value="radial">celestial</option>
+                   <option value="symmetric">symmetric</option>
+                   <option value="force">force galaxy</option>
+                 </select>
+               </div>
+
+               <div className="slider-container">
+                 <label>branch drawing style</label>
+                 <select className="lowcase-select" value={edgeStyle} onChange={e => setEdgeStyle(e.target.value as any)}>
+                   <option value="curved">curved lines</option>
+                   <option value="straight">straight lines</option>
+                 </select>
+               </div>
+
+               <button onClick={() => setPalette(p => p === 'dark' ? 'light' : 'dark')}>
+                 {palette === 'dark' ? 'toggle light mode' : 'toggle dark mode'}
+               </button>
+            </div>
+
+            {isPlanMode && (
+              <div className="plan-overlay-mobile">
+                <div className="plan-title">analysis for seed {sequence[0] || seed}</div>
+                <div className="plan-stat">peak value: {maxVal}</div>
+                <div className="plan-stat">path length: {sequence.length - 1}</div>
+                <div className="step-list-mini">
+                  {sequence.map((val, idx) => {
+                    const isHovered = hoveredNodeId === val;
+                    return (
+                      <div 
+                        key={idx} 
+                        className={`plan-step ${isHovered ? 'hovered' : ''}`}
+                        onMouseEnter={() => setHoveredNodeId(val)} 
+                        onMouseLeave={() => setHoveredNodeId(null)} 
+                        onClick={() => { handleSelectNode(val); treeRef.current?.focusOnNode(val); }}
+                      >
+                        step {idx}: {val} <span style={{opacity: 0.5}}>{val % 2 === 0 ? '(even)' : '(odd)'}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

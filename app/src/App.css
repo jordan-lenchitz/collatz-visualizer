@@ -183,61 +183,69 @@
   text-shadow: 0 0 8px rgba(255, 0, 184, 0.8);
 }
 
-/* Original Controls Overlay (Bottom Right) */
-.controls-overlay {
+.top-left-container {
   position: absolute;
-  bottom: 40px;
-  right: 40px;
-  z-index: 10;
+  top: 15px;
+  left: 15px;
+  z-index: 200;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  background: var(--panel-bg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  padding: 20px;
-  border-radius: 20px;
-  border: 1px solid var(--panel-border);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-  color: white;
-  width: 220px;
 }
 
-/* Mobile Fix for overlap: push controls above the ui overlay */
-@media (max-width: 768px) {
-  .controls-overlay {
-    bottom: 220px; /* Above the bottom center UI overlay */
-    right: 50%;
-    transform: translateX(50%);
-    width: 90vw;
-    box-sizing: border-box;
-    max-width: 320px;
-    padding: 15px;
-    gap: 8px;
+.collapse-toggle {
+  background: rgba(4, 8, 18, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 8px;
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+  font-weight: 600;
+  font-family: 'Outfit', sans-serif;
+  align-self: flex-start;
+  transition: all 0.2s;
+}
+
+.collapse-toggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.expanded-controls-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 15px;
+  max-height: 45vh;
+}
+
+@media (min-width: 600px) {
+  .expanded-controls-grid {
+    grid-template-columns: 1fr 1fr;
+    max-height: 80vh;
   }
 }
 
-.controls-overlay button {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: inherit;
-  padding: 8px 16px;
+.controls-overlay-mobile, .plan-overlay-mobile {
+  background: rgba(4, 8, 18, 0.75);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 15px;
   border-radius: 12px;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  max-height: 100%;
+}
+
+.controls-overlay-mobile button {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 6px;
   cursor: pointer;
-  font-family: inherit;
-  font-size: 0.95rem;
-  font-weight: 600;
-  transition: all 0.2s;
-  text-transform: lowercase;
-}
-
-.controls-overlay button:hover {
-  background: rgba(255, 255, 255, 0.2);
-  transform: translateY(-1px);
-}
-
-.controls-overlay button:active {
-  transform: translateY(1px);
 }
 
 .slider-container {
@@ -268,38 +276,6 @@
   font-size: 0.9rem;
   text-transform: lowercase;
   outline: none;
-}
-
-/* Plan Overlay */
-.plan-overlay {
-  position: absolute;
-  top: 30px;
-  left: 40px;
-  z-index: 10;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  background: var(--panel-bg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  padding: 20px;
-  border-radius: 20px;
-  border: 1px solid var(--panel-border);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-  color: white;
-  width: 240px;
-  max-height: 50vh;
-}
-
-@media (max-width: 768px) {
-  .plan-overlay {
-    top: 100px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 90vw;
-    box-sizing: border-box;
-    max-width: 320px;
-  }
 }
 
 .plan-title {
@@ -350,12 +326,18 @@
 }
 
 .app-container.light .ui-overlay,
-.app-container.light .controls-overlay,
-.app-container.light .plan-overlay {
+.app-container.light .controls-overlay-mobile,
+.app-container.light .plan-overlay-mobile {
   background: rgba(255, 255, 255, 0.8);
   border-color: rgba(0, 0, 0, 0.2);
   color: black;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+.app-container.light .collapse-toggle {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  color: #000;
 }
 
 .app-container.light .seed-input {
@@ -389,14 +371,15 @@
   color: rgba(0, 0, 0, 0.5);
 }
 
-.app-container.light .controls-overlay button,
-.app-container.light .plan-overlay button {
+.app-container.light .controls-overlay-mobile button,
+.app-container.light .plan-overlay-mobile button {
   background: rgba(0, 0, 0, 0.05);
   border-color: rgba(0, 0, 0, 0.1);
+  color: black;
 }
 
-.app-container.light .controls-overlay button:hover,
-.app-container.light .plan-overlay button:hover {
+.app-container.light .controls-overlay-mobile button:hover,
+.app-container.light .plan-overlay-mobile button:hover {
   background: rgba(0, 0, 0, 0.1);
 }
 
