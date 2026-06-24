@@ -7,6 +7,7 @@ export interface CollatzTreeRef {
   setExploreMode: (explore: boolean) => void;
   focusOnNode: (id: number) => void;
   recalculateLayout: () => void;
+  stopBuilding: () => void;
 }
 
 interface Node {
@@ -31,6 +32,7 @@ interface CollatzTreeProps {
   hoveredNodeId: number | null;
   onHoverNode: (id: number | null) => void;
   onSelectNode: (id: number) => void;
+  onPathComplete?: () => void;
 }
 
 const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) => {
@@ -683,9 +685,13 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
 
       if (!propsRef.current.isPaused) {
         const baseSpeed = [0.11, 0.055, 0.02, 0.006, 0.0017][propsRef.current.speed - 1] || 0.02;
+        const wasComplete = active.progress >= nodes.length - 1;
         active.progress += baseSpeed * (dt / 16.6);
         if (active.progress >= nodes.length - 1) {
            active.progress = nodes.length - 1;
+           if (!wasComplete && propsRef.current.onPathComplete) {
+               propsRef.current.onPathComplete();
+           }
         }
       }
     }
@@ -926,6 +932,14 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
     },
     recalculateLayout: () => {
       recalculateLayout();
+    },
+    stopBuilding: () => {
+      if (activeTaskRef.current.timeoutId) {
+        window.clearTimeout(activeTaskRef.current.timeoutId);
+        activeTaskRef.current.timeoutId = undefined;
+      }
+      activeTaskRef.current.isRunning = false;
+      setIsAnimating(false);
     }
   }));
 

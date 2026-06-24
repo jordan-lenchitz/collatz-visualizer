@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
+import confetti from 'canvas-confetti';
 import './App.css';
 import CollatzTree, { type CollatzTreeRef } from './CollatzTree';
 
@@ -47,7 +48,16 @@ function App() {
         updateSequence(num);
         treeRef.current?.buildTree(num, () => {
           setTreeState('BUILT');
+          confetti({
+            particleCount: 150,
+            spread: 80,
+            origin: { y: 0.6 },
+            colors: palette === 'dark' ? ['#00ffaa', '#00b8ff', '#ffffff'] : ['#009650', '#0064c8', '#ffffff']
+          });
         });
+      } else if (treeState === 'BUILDING') {
+        treeRef.current?.stopBuilding();
+        setTreeState('IDLE');
       } else if (treeState === 'BUILT') {
         treeRef.current?.followPathDown(num);
       }
@@ -76,6 +86,12 @@ function App() {
     updateSequence(nodeId);
     treeRef.current?.buildTree(nodeId, () => {
       setTreeState('BUILT');
+      confetti({
+        particleCount: 100,
+        spread: 60,
+        origin: { y: 0.6 },
+        colors: palette === 'dark' ? ['#00ffaa', '#00b8ff', '#ffffff'] : ['#009650', '#0064c8', '#ffffff']
+      });
     });
   };
 
@@ -106,6 +122,14 @@ function App() {
         hoveredNodeId={hoveredNodeId}
         onHoverNode={setHoveredNodeId}
         onSelectNode={handleSelectNode}
+        onPathComplete={() => {
+          confetti({
+            particleCount: 200,
+            spread: 100,
+            origin: { y: 0.6 },
+            colors: palette === 'dark' ? ['#00ffaa', '#00b8ff', '#ffffff'] : ['#009650', '#0064c8', '#ffffff']
+          });
+        }}
       />
 
       <div className="ui-overlay">
@@ -122,17 +146,16 @@ function App() {
         <button 
           className="action-btn" 
           onClick={handleAction}
-          disabled={treeState === 'BUILDING'}
         >
-          {treeState === 'IDLE' && 'plant and grow the tree from one up to your number'}
-          {treeState === 'BUILDING' && 'growing...'}
-          {treeState === 'BUILT' && 'follow path to one!'}
+          {treeState === 'IDLE' && 'Plant Seed & Grow Tree'}
+          {treeState === 'BUILDING' && 'Stop Growing (Cancel)'}
+          {treeState === 'BUILT' && 'Follow Path to One'}
         </button>
         <button
           className={`action-btn ${isExploreMode ? 'explore-active' : ''}`}
           onClick={toggleExploreMode}
         >
-          {isExploreMode ? 'stop exploring (auto-follow)' : 'explore freely'}
+          {isExploreMode ? 'Stop Exploring' : 'Explore Freely'}
         </button>
       </div>
 
