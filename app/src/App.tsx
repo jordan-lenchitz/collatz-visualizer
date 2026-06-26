@@ -46,15 +46,20 @@ function App() {
       if (treeState === 'IDLE') {
         setTreeState('BUILDING');
         updateSequence(num);
-        treeRef.current?.buildTree(num, () => {
-          setTreeState('BUILT');
-          confetti({
-            particleCount: 150,
-            spread: 80,
-            origin: { y: 0.6 },
-            colors: palette === 'dark' ? ['#00ffaa', '#00b8ff', '#ffffff'] : ['#009650', '#0064c8', '#ffffff']
+        
+        // Tiny timeout to allow the React state (BUILDING overlay) to render before blocking the main thread
+        setTimeout(() => {
+          treeRef.current?.buildTree(num, () => {
+            setTreeState('BUILT');
+            treeRef.current?.followPathDown(num);
+            confetti({
+              particleCount: 150,
+              spread: 80,
+              origin: { y: 0.6 },
+              colors: palette === 'dark' ? ['#00ffaa', '#00b8ff', '#ffffff'] : ['#009650', '#0064c8', '#ffffff']
+            });
           });
-        });
+        }, 50);
       } else if (treeState === 'BUILDING') {
         treeRef.current?.stopBuilding();
         setTreeState('IDLE');
@@ -98,8 +103,8 @@ function App() {
   const maxVal = sequence.length > 0 ? Math.max(...sequence) : 1;
 
   return (
-    <div className={`app-container ${palette}`}>
-      <div className="title-overlay">
+    <div className={`app-container ${palette}`} role="main" aria-label="Collatz Visualizer Application">
+      <div className="title-overlay" aria-hidden="true">
         <h1><span>collatz</span> visualizer</h1>
         <div className="subtitle">
           <span className="rule-text">if even divide by two</span><br/>
@@ -111,6 +116,13 @@ function App() {
         </div>
       </div>
       
+      {/* Screen Reader Only Announcement Region */}
+      <div className="sr-only" aria-live="polite" role="status">
+        {treeState === 'BUILDING' && 'Building tree for seed ' + seed}
+        {treeState === 'BUILT' && 'Tree built successfully for seed ' + seed}
+        {treeState === 'IDLE' && 'Ready. Enter a seed number to begin.'}
+      </div>
+
       <CollatzTree 
         ref={treeRef} 
         speed={speed} 
@@ -132,8 +144,10 @@ function App() {
         }}
       />
 
-      <div className="ui-overlay">
+      <div className="ui-overlay" role="region" aria-label="Main Controls">
+        <label htmlFor="seed-input" className="sr-only">Seed Number</label>
         <input 
+          id="seed-input"
           type="number" 
           className="seed-input" 
           placeholder="enter seed number..." 
@@ -141,11 +155,17 @@ function App() {
           onChange={handleSeedChange}
           onKeyDown={handleKeyDown}
           min="1"
+          aria-label="Seed number input for Collatz sequence"
           disabled={treeState === 'BUILDING'}
         />
         <button 
           className="action-btn" 
           onClick={handleAction}
+          aria-label={
+            treeState === 'IDLE' ? 'Plant Seed and Grow Tree' :
+            treeState === 'BUILDING' ? 'Cancel Tree Growth' :
+            'Follow Path down to One'
+          }
         >
           {treeState === 'IDLE' && 'Plant Seed & Grow Tree'}
           {treeState === 'BUILDING' && 'Stop Growing (Cancel)'}
@@ -154,13 +174,20 @@ function App() {
         <button
           className={`action-btn ${isExploreMode ? 'explore-active' : ''}`}
           onClick={toggleExploreMode}
+          aria-pressed={isExploreMode}
+          aria-label="Toggle free explore camera mode"
         >
           {isExploreMode ? 'Stop Exploring' : 'Explore Freely'}
         </button>
       </div>
 
-      <div className="top-left-container">
-        <button className="collapse-toggle" onClick={() => setShowControls(!showControls)}>
+      <div className="top-left-container" role="region" aria-label="Settings and Plan Mode">
+        <button 
+          className="collapse-toggle" 
+          onClick={() => setShowControls(!showControls)}
+          aria-expanded={showControls}
+          aria-label={showControls ? 'Hide controls menu' : 'Show controls menu'}
+        >
           {showControls ? 'hide controls ⚙️' : 'show controls ⚙️'}
         </button>
 
@@ -176,13 +203,27 @@ function App() {
                </button>
                
                <div className="slider-container">
-                 <label>speed of descent to one</label>
-                 <input type="range" min="1" max="5" value={speed} onChange={e => setSpeed(parseInt(e.target.value))} />
+                 <label htmlFor="speed-slider">speed of descent to one</label>
+                 <input 
+                   id="speed-slider"
+                   type="range" 
+                   min="1" 
+                   max="5" 
+                   value={speed} 
+                   onChange={e => setSpeed(parseInt(e.target.value))} 
+                   aria-label="Animation Speed"
+                 />
                </div>
 
                <div className="slider-container">
-                 <label>tree layout mode</label>
-                 <select className="lowcase-select" value={layoutMode} onChange={e => setLayoutMode(e.target.value as any)}>
+                 <label htmlFor="layout-select">tree layout mode</label>
+                 <select 
+                   id="layout-select"
+                   className="lowcase-select" 
+                   value={layoutMode} 
+                   onChange={e => setLayoutMode(e.target.value as any)}
+                   aria-label="Tree layout mode selection"
+                 >
                    <option value="organic">organic</option>
                    <option value="radial">celestial</option>
                    <option value="symmetric">symmetric</option>
@@ -191,8 +232,14 @@ function App() {
                </div>
 
                <div className="slider-container">
-                 <label>branch drawing style</label>
-                 <select className="lowcase-select" value={edgeStyle} onChange={e => setEdgeStyle(e.target.value as any)}>
+                 <label htmlFor="edge-select">branch drawing style</label>
+                 <select 
+                   id="edge-select"
+                   className="lowcase-select" 
+                   value={edgeStyle} 
+                   onChange={e => setEdgeStyle(e.target.value as any)}
+                   aria-label="Branch edge drawing style selection"
+                 >
                    <option value="curved">curved lines</option>
                    <option value="straight">straight lines</option>
                  </select>

@@ -110,14 +110,14 @@
   z-index: 10;
   display: flex;
   gap: 16px;
-  background: rgba(4, 8, 18, 0.45);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  padding: 16px 28px;
+  background: rgba(10, 15, 30, 0.55);
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  padding: 18px 32px;
   border-radius: 40px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5), 0 0 30px rgba(0, 255, 170, 0.05);
-  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.1);
+  transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
   animation: slideUp 0.8s ease-out;
 }
 
@@ -138,10 +138,10 @@
 }
 
 .seed-input {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 25px;
-  padding: 12px 24px;
+  padding: 14px 28px;
   color: white;
   font-family: 'Outfit', sans-serif;
   font-size: 1.1rem;
@@ -160,8 +160,8 @@
 
 .seed-input:focus {
   border-color: var(--primary-glow);
-  background: rgba(255, 255, 255, 0.08);
-  box-shadow: inset 0 2px 5px rgba(0,0,0,0.2), 0 0 15px rgba(0, 255, 170, 0.2);
+  background: rgba(0, 0, 0, 0.5);
+  box-shadow: inset 0 2px 5px rgba(0,0,0,0.3), 0 0 20px rgba(0, 255, 170, 0.25);
 }
 
 .seed-input::placeholder {
@@ -169,10 +169,10 @@
 }
 
 .action-btn {
-  background: linear-gradient(135deg, rgba(0, 255, 170, 0.15), rgba(0, 184, 255, 0.15));
-  border: 1px solid rgba(0, 255, 170, 0.4);
+  background: linear-gradient(135deg, rgba(0, 255, 170, 0.2), rgba(0, 184, 255, 0.2));
+  border: 1px solid rgba(0, 255, 170, 0.5);
   border-radius: 25px;
-  padding: 12px 28px;
+  padding: 14px 32px;
   color: var(--text-color);
   font-family: 'Outfit', sans-serif;
   font-weight: 500;
@@ -184,10 +184,10 @@
 }
 
 .action-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, rgba(0, 255, 170, 0.3), rgba(0, 184, 255, 0.3));
-  border-color: rgba(0, 255, 170, 0.8);
-  box-shadow: 0 8px 25px rgba(0, 255, 170, 0.3), inset 0 0 10px rgba(0, 255, 170, 0.2);
-  transform: translateY(-2px) scale(1.02);
+  background: linear-gradient(135deg, rgba(0, 255, 170, 0.4), rgba(0, 184, 255, 0.4));
+  border-color: rgba(0, 255, 170, 1);
+  box-shadow: 0 10px 30px rgba(0, 255, 170, 0.4), inset 0 0 15px rgba(0, 255, 170, 0.3);
+  transform: translateY(-3px) scale(1.02);
 }
 
 .action-btn:active:not(:disabled) {
@@ -219,19 +219,19 @@
 }
 
 .collapse-toggle {
-  background: rgba(4, 8, 18, 0.45);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(10, 15, 30, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   color: #fff;
-  padding: 10px 20px;
+  padding: 12px 24px;
   border-radius: 12px;
-  backdrop-filter: blur(15px);
-  -webkit-backdrop-filter: blur(15px);
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
   cursor: pointer;
   font-weight: 500;
   font-family: 'Outfit', sans-serif;
   align-self: flex-start;
-  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.3);
 }
 
 .collapse-toggle:hover {
@@ -255,11 +255,12 @@
 }
 
 .controls-overlay-mobile, .plan-overlay-mobile {
-  background: rgba(4, 8, 18, 0.75);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 15px;
-  border-radius: 12px;
+  background: rgba(10, 15, 30, 0.7);
+  backdrop-filter: blur(24px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 18px;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.4);
   color: #fff;
   display: flex;
   flex-direction: column;
@@ -272,9 +273,16 @@
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   color: #fff;
-  padding: 6px 12px;
-  border-radius: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
   cursor: pointer;
+  font-family: 'Outfit', sans-serif;
+  transition: background 0.2s, transform 0.2s;
+}
+
+.controls-overlay-mobile button:hover {
+  background: rgba(255, 255, 255, 0.12);
+  transform: translateY(-1px);
 }
 
 .slider-container {

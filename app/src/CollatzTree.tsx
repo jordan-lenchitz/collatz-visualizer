@@ -20,6 +20,8 @@ interface Node {
   isMainPath: boolean;
   targetX: number;
   targetY: number;
+  layoutX?: number;
+  layoutY?: number;
 }
 
 interface CollatzTreeProps {
@@ -43,6 +45,7 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const a11yContainerRef = useRef<HTMLDivElement>(null);
   
   const nodesMap = useRef<Map<number, Node>>(new Map());
   const edges = useRef<{source: Node, target: Node, isMain: boolean}[]>([]);
@@ -137,8 +140,8 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
 
     const root = nodes.get(1);
     if (root) {
-      root.targetX = 0;
-      root.targetY = 0;
+      root.layoutX = 0;
+      root.layoutY = 0;
       root.angle = -Math.PI / 2;
     }
 
@@ -171,8 +174,8 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
 
         const len = (childNode.isMainPath ? 55 : 42) * Math.pow(0.993, parentNode.depth);
         childNode.angle = angle;
-        childNode.targetX = parentNode.targetX + Math.cos(angle) * len;
-        childNode.targetY = parentNode.targetY + Math.sin(angle) * len;
+        childNode.layoutX = (parentNode.layoutX || 0) + Math.cos(angle) * len;
+        childNode.layoutY = (parentNode.layoutY || 0) + Math.sin(angle) * len;
 
         traverse(childId);
       }
@@ -195,8 +198,8 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
 
     const root = nodes.get(1);
     if (root) {
-      root.targetX = 0;
-      root.targetY = 0;
+      root.layoutX = 0;
+      root.layoutY = 0;
       root.angle = -Math.PI / 2;
     }
 
@@ -220,8 +223,8 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
 
         childNode.angle = angle;
         const R = childNode.depth * 38;
-        childNode.targetX = Math.cos(angle) * R;
-        childNode.targetY = Math.sin(angle) * R;
+        childNode.layoutX = Math.cos(angle) * R;
+        childNode.layoutY = Math.sin(angle) * R;
 
         traverse(childId);
       }
@@ -244,8 +247,8 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
 
     const root = nodes.get(1) as any;
     if (root) {
-      root.targetX = 0;
-      root.targetY = 0;
+      root.layoutX = 0;
+      root.layoutY = 0;
       root.span = 600;
     }
 
@@ -262,15 +265,15 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
         const childNode = nodes.get(childId) as any;
         if (!childNode) continue;
 
-        childNode.targetY = -childNode.depth * 52;
+        childNode.layoutY = -childNode.depth * 52;
 
         if (hasTwoChildren) {
           const isEven = childId === id * 2;
           childNode.span = parentNode.span * 0.5;
-          childNode.targetX = parentNode.targetX + (isEven ? -parentNode.span * 0.5 : parentNode.span * 0.5);
+          childNode.layoutX = (parentNode.layoutX || 0) + (isEven ? -parentNode.span * 0.5 : parentNode.span * 0.5);
         } else {
           childNode.span = parentNode.span;
-          childNode.targetX = parentNode.targetX; // keep straight
+          childNode.layoutX = parentNode.layoutX || 0; // keep straight
         }
 
         traverse(childId);
@@ -280,8 +283,9 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
     traverse(1);
   };
 
-  // 4. Force-directed Simulation layout
+  // 4. Universal Force-directed Simulation layout
   const updateForceSimulation = () => {
+    const mode = propsRef.current.layoutMode;
     const nodeList = Array.from(nodesMap.current.values());
     const edgeList = edges.current.map(e => ({
       source: e.source.id,
@@ -290,20 +294,39 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
 
     if (!simulationRef.current) {
       simulationRef.current = d3.forceSimulation(nodeList)
-        .force("link", d3.forceLink(edgeList).id((d: any) => d.id).distance(35))
-        .force("charge", d3.forceManyBody().strength(-60))
-        .force("center", d3.forceCenter(0, 0))
-        .force("collide", d3.forceCollide().radius(18))
+        .velocityDecay(0.6) // Add friction to stop angry bees!
         .on("tick", () => {
-          for (const node of nodeList) {
+          // Fix closure bug: iterate over the ref, not the initial captured nodeList
+          for (const node of nodesMap.current.values()) {
             node.targetX = node.x;
             node.targetY = node.y;
           }
         });
     } else {
       simulationRef.current.nodes(nodeList);
-      (simulationRef.current.force("link") as any).links(edgeList);
-      simulationRef.current.alpha(0.3).restart();
+    }
+    
+    const sim = simulationRef.current;
+    
+    if (mode === 'force') {
+      sim.force("x", null)
+         .force("y", null)
+         .force("link", d3.forceLink(edgeList).id((d: any) => d.id).distance(35))
+         .force("charge", d3.forceManyBody().strength(-70))
+         .force("center", d3.forceCenter(0, 0))
+         .force("collide", d3.forceCollide().radius((d: any) => d.isMainPath ? 24 : 14).iterations(3));
+    } else {
+      sim.force("link", null)
+         .force("charge", null)
+         .force("center", null)
+         .force("x", d3.forceX((d: any) => d.layoutX || 0).strength(0.2))
+         .force("y", d3.forceY((d: any) => d.layoutY || 0).strength(0.2))
+         .force("collide", d3.forceCollide().radius((d: any) => d.isMainPath ? 22 : 12).iterations(2));
+    }
+    
+    // Only slightly reheat if it's cooling down, to avoid "angry bees" jittering
+    if (sim.alpha() < 0.15) {
+      sim.alpha(0.15).restart();
     }
   };
 
@@ -313,17 +336,15 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
     if (nodes.size === 0) return;
 
     if (mode === 'organic') {
-      stopForceSimulation();
       computeOrganicLayout(nodes);
     } else if (mode === 'radial') {
-      stopForceSimulation();
       computeRadialLayout(nodes);
     } else if (mode === 'symmetric') {
-      stopForceSimulation();
       computeSymmetricLayout(nodes);
-    } else if (mode === 'force') {
-      updateForceSimulation();
     }
+    
+    // Apply universal anti-collision simulation for all modes
+    updateForceSimulation();
   };
 
   // Recalculate when props change
@@ -346,15 +367,41 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       depth: 0,
       isMainPath: true,
       targetX: 0,
-      targetY: 0
+      targetY: 0,
+      layoutX: 0,
+      layoutY: 0
     });
+    
+    if (a11yContainerRef.current) {
+      a11yContainerRef.current.innerHTML = '';
+      const btn = document.createElement('button');
+      btn.className = 'sr-only';
+      btn.textContent = `Node 1, the end of the sequence. Press enter to use as seed.`;
+      btn.onclick = () => { if (propsRef.current.onSelectNode) propsRef.current.onSelectNode(1); };
+      
+      const focusOnNodeLogic = (id: number) => {
+        const n = nodesMap.current.get(id);
+        if (n && canvasRef.current) {
+          const targetK = Math.min(2.5, 1.8);
+          cameraTargetRef.current = {
+            x: canvasRef.current.width / 2 - n.x * targetK,
+            y: canvasRef.current.height * 0.5 - n.y * targetK,
+            k: targetK
+          };
+          setHoveredNode(n);
+        }
+      };
+      
+      btn.onfocus = () => focusOnNodeLogic(1);
+      a11yContainerRef.current.appendChild(btn);
+    }
   };
 
   const addNode = (val: number, parent: Node, isMainPath: boolean): Node => {
-    // We spawn initially at parent x,y with a tiny jitter, then let layout recalculation place them
-    // This jitter prevents d3 force simulation from exploding due to exactly overlapping nodes
-    const jitterX = (Math.random() - 0.5) * 1.0;
-    const jitterY = (Math.random() - 0.5) * 1.0;
+    // We spawn initially at parent x,y with a jitter, then let layout recalculation place them
+    // This larger jitter (8.0 instead of 1.0) prevents d3 force simulation from exploding due to perfectly overlapping nodes
+    const jitterX = (Math.random() - 0.5) * 8.0;
+    const jitterY = (Math.random() - 0.5) * 8.0;
     const node: Node = {
       id: val,
       x: parent.x + jitterX,
@@ -364,11 +411,37 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       depth: parent.depth + 1,
       isMainPath,
       targetX: parent.x + jitterX,
-      targetY: parent.y + jitterY
+      targetY: parent.y + jitterY,
+      layoutX: parent.layoutX || 0,
+      layoutY: parent.layoutY || 0
     };
     
     nodesMap.current.set(val, node);
     edges.current.push({ source: parent, target: node, isMain: isMainPath });
+    
+    if (a11yContainerRef.current && nodesMap.current.size <= 2000) {
+      const btn = document.createElement('button');
+      btn.className = 'sr-only';
+      btn.textContent = `Node ${val}, ${val % 2 === 0 ? 'even' : 'odd'}, ${node.depth} steps to one. Press enter to use as seed.`;
+      btn.onclick = () => { if (propsRef.current.onSelectNode) propsRef.current.onSelectNode(val); };
+      
+      const focusOnNodeLogic = (id: number) => {
+        const n = nodesMap.current.get(id);
+        if (n && canvasRef.current) {
+          const targetK = Math.min(2.5, 1.8);
+          cameraTargetRef.current = {
+            x: canvasRef.current.width / 2 - n.x * targetK,
+            y: canvasRef.current.height * 0.5 - n.y * targetK,
+            k: targetK
+          };
+          setHoveredNode(n);
+        }
+      };
+      
+      btn.onfocus = () => focusOnNodeLogic(val);
+      a11yContainerRef.current.appendChild(btn);
+    }
+    
     return node;
   };
 
@@ -409,13 +482,29 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       }
     }
 
-    // Node interpolation
+    // Emergency physics check inside draw loop
+    if (simulationRef.current) {
+      let unstable = false;
+      for (const node of nodesMap.current.values() as any) {
+        if (node.vx && node.vy && (node.vx * node.vx + node.vy * node.vy > 2500)) {
+          unstable = true;
+          break;
+        }
+      }
+      if (unstable) {
+        console.warn("Emergency stop triggered: Physics unstable during rendering.");
+        stopForceSimulation();
+      }
+    }
+
+    // Node interpolation (D3 updates x/y directly via simulation)
     for (const node of nodesMap.current.values()) {
-      if (propsRef.current.layoutMode === 'force') {
-        // Let D3 force write directly to coordinates
-      } else {
-        node.x += (node.targetX - node.x) * 0.12 * (dt / 16.6);
-        node.y += (node.targetY - node.y) * 0.12 * (dt / 16.6);
+      if (propsRef.current.layoutMode !== 'force' && simulationRef.current) {
+         // simulation updates x/y towards layoutX/Y
+      } else if (propsRef.current.layoutMode !== 'force') {
+         // fallback if no sim
+         node.x += (node.targetX - node.x) * 0.12 * (dt / 16.6);
+         node.y += (node.targetY - node.y) * 0.12 * (dt / 16.6);
       }
     }
 
@@ -739,9 +828,7 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       pathSeq.push(1);
       pathSeq.reverse(); // [1, ..., seed]
 
-      let step = 1;
       let branchTips: Node[] = [];
-      let isMainBuilt = false;
 
       const svg = d3.select(canvasRef.current);
       const zoom = d3.zoom<HTMLCanvasElement, unknown>()
@@ -756,62 +843,13 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       const targetNodes = densVal === 'low' 
         ? Math.min(300, pathSeq.length * 6)
         : densVal === 'medium' 
-          ? Math.min(2200, pathSeq.length * 35)
-          : Math.min(12000, pathSeq.length * 120);
+          ? Math.min(1000, pathSeq.length * 20)
+          : Math.min(2000, pathSeq.length * 40);
 
       const branchProb = densVal === 'low' ? 0.12 : densVal === 'medium' ? 0.28 : 0.45;
 
-      const nextStep = () => {
-        if (!activeTaskRef.current.isRunning) return;
-        
-        if (step >= pathSeq.length && !isMainBuilt) {
-          isMainBuilt = true;
-          setIsAnimating(false);
-          
-          // Instantly grow secondary branches fully
-          let panic = 0;
-          while (branchTips.length > 0 && nodesMap.current.size < targetNodes && panic < 180) {
-              let newTips: Node[] = [];
-              for (const tip of branchTips) {
-                  if (nodesMap.current.size > targetNodes) break;
-                  
-                  const t1 = tip.id * 2;
-                  const t2 = (tip.id - 1) / 3;
-                  
-                  let pushed = false;
-                  if (!nodesMap.current.has(t1)) {
-                      if (Math.random() < 0.75) {
-                          const n1 = addNode(t1, tip, false);
-                          newTips.push(n1);
-                          pushed = true;
-                      } else {
-                          newTips.push(tip);
-                          pushed = true;
-                      }
-                  }
-                  if (tip.id > 4 && (tip.id - 1) % 3 === 0) {
-                      if (t2 % 2 !== 0 && t2 > 1 && !nodesMap.current.has(t2)) {
-                          if (Math.random() < 0.85) {
-                              const n2 = addNode(t2, tip, false);
-                              newTips.push(n2);
-                          } else if (!pushed) {
-                              newTips.push(tip);
-                          }
-                      }
-                  }
-              }
-              if (newTips.length > 180) {
-                  newTips = newTips.sort(() => Math.random() - 0.5).slice(0, 110);
-              }
-              branchTips = newTips;
-              panic++;
-          }
-          
-          recalculateLayout();
-          onComplete();
-        }
-
-        if (step < pathSeq.length) {
+      // 1. Synchronously build main path
+      for (let step = 1; step < pathSeq.length; step++) {
           const val = pathSeq[step];
           const prevVal = pathSeq[step - 1];
           const parent = nodesMap.current.get(prevVal)!;
@@ -821,28 +859,13 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
           const c1 = node.id * 2;
           const c2 = (node.id - 1) / 3;
           
-          if (!nodesMap.current.has(c1) && Math.random() < branchProb) {
-             branchTips.push(node);
-          }
-          if (node.id > 4 && (node.id - 1) % 3 === 0 && !nodesMap.current.has(c2)) {
-             branchTips.push(node);
-          }
+          if (!nodesMap.current.has(c1) && Math.random() < branchProb) branchTips.push(node);
+          if (node.id > 4 && (node.id - 1) % 3 === 0 && !nodesMap.current.has(c2)) branchTips.push(node);
+      }
 
-          const canvas = canvasRef.current;
-          if (canvas) {
-            const width = canvas.width;
-            const height = canvas.height;
-            const k = 1.15; 
-            cameraTargetRef.current = {
-              x: width / 2 - node.x * k,
-              y: height * 0.4 - node.y * k,
-              k: k
-            };
-          }
-        }
-
-        // Sprout side-branches alongside main path
-        if (nodesMap.current.size < targetNodes) {
+      // 2. Synchronously sprout side branches
+      let panic = 0;
+      while (branchTips.length > 0 && nodesMap.current.size < targetNodes && panic < 250) {
           let newTips: Node[] = [];
           for (const tip of branchTips) {
               if (nodesMap.current.size > targetNodes) break;
@@ -853,8 +876,7 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
               let pushed = false;
               if (!nodesMap.current.has(t1)) {
                   if (Math.random() < 0.78) {
-                      const n1 = addNode(t1, tip, false);
-                      newTips.push(n1);
+                      newTips.push(addNode(t1, tip, false));
                       pushed = true;
                   } else {
                       newTips.push(tip);
@@ -864,8 +886,7 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
               if (tip.id > 4 && (tip.id - 1) % 3 === 0) {
                   if (t2 % 2 !== 0 && t2 > 1 && !nodesMap.current.has(t2)) {
                       if (Math.random() < 0.88) {
-                          const n2 = addNode(t2, tip, false);
-                          newTips.push(n2);
+                          newTips.push(addNode(t2, tip, false));
                       } else if (!pushed) {
                           newTips.push(tip);
                       }
@@ -876,28 +897,38 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
               newTips = newTips.sort(() => Math.random() - 0.5).slice(0, 100);
           }
           branchTips = newTips;
-        }
-
-        recalculateLayout();
-        step++;
-        
-        if (step <= pathSeq.length) {
-           activeTaskRef.current.timeoutId = window.setTimeout(nextStep, 250);
-        } else {
-           activeTaskRef.current.isRunning = false;
-        }
-      };
-
-      const canvas = canvasRef.current;
-      if (canvas) {
-        cameraTargetRef.current = {
-           x: canvas.width / 2,
-           y: canvas.height * 0.4,
-           k: 1.15
-        };
+          panic++;
       }
 
-      activeTaskRef.current.timeoutId = window.setTimeout(nextStep, 300);
+      // 3. Pre-calculate layout & instantiate forces
+      recalculateLayout();
+
+      // 4. Fast-forward the physics simulation so it instantly settles! (NO MORE ANGRY BEES)
+      if (simulationRef.current) {
+          simulationRef.current.tick(120);
+          
+          // Force apply layout targets instantly to skip transition
+          for (const node of nodesMap.current.values()) {
+              node.targetX = node.x;
+              node.targetY = node.y;
+          }
+      }
+
+      // Center Camera on seed
+      const canvas = canvasRef.current;
+      if (canvas) {
+          const seedNode = nodesMap.current.get(seed);
+          const k = 1.15;
+          cameraTargetRef.current = {
+             x: canvas.width / 2 - (seedNode ? seedNode.x * k : 0),
+             y: canvas.height * 0.4 - (seedNode ? seedNode.y * k : 0),
+             k: k
+          };
+      }
+
+      activeTaskRef.current.isRunning = false;
+      setIsAnimating(false);
+      onComplete();
     },
     followPathDown: (seed: number) => {
       const fullPath: Node[] = [];
@@ -1078,6 +1109,13 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
 
   return (
     <div ref={containerRef} className="canvas-container" style={{ position: 'relative' }}>
+      {/* Visually hidden container for screen reader and keyboard accessibility */}
+      <div 
+        ref={a11yContainerRef} 
+        className="sr-only" 
+        aria-label="Collatz Tree Nodes. Tab to navigate through the tree." 
+      />
+      
       <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '100%' }} />
       
       {isAnimating && (
