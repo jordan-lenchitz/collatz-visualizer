@@ -22,6 +22,7 @@ interface Node {
   targetY: number;
   layoutX?: number;
   layoutY?: number;
+  weight?: number;
 }
 
 interface CollatzTreeProps {
@@ -172,7 +173,8 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
         while (diff < -Math.PI) diff += 2 * Math.PI;
         angle += diff * 0.08;
 
-        const len = (childNode.isMainPath ? 55 : 42) * Math.pow(0.993, parentNode.depth);
+        const jumpFactor = isEvenChild ? 1.0 : 2.5;
+        const len = (childNode.isMainPath ? 50 : 35) * jumpFactor * Math.pow(0.993, parentNode.depth);
         childNode.angle = angle;
         childNode.layoutX = (parentNode.layoutX || 0) + Math.cos(angle) * len;
         childNode.layoutY = (parentNode.layoutY || 0) + Math.sin(angle) * len;
@@ -541,37 +543,67 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     
-    // Palette styles
-    const colors = propsRef.current.palette === 'light' ? {
-         sideEdge: 'rgba(0, 150, 80, 0.25)',
-         mainEdge: 'rgba(0, 100, 200, 0.5)',
-         hoveredEdge: '#d80073',
-         sideNodeFill: '#ffffff',
-         sideNodeStroke: 'rgba(0, 150, 80, 0.5)',
-         sideText: 'rgba(0, 0, 0, 0.75)',
-         mainNodeFill: '#ffffff',
-         mainNodeStroke: '#0064c8',
-         mainText: '#000000',
-         activePath: 'rgba(0, 100, 200, 0.7)',
-         pulseFill: '#0064c8',
-         pulseShadow: '#00b8ff'
-    } : {
-         sideEdge: 'rgba(0, 255, 170, 0.22)',
-         mainEdge: 'rgba(0, 184, 255, 0.55)',
-         hoveredEdge: '#ff00b8',
-         sideNodeFill: '#040812',
-         sideNodeStroke: 'rgba(0, 255, 170, 0.45)',
-         sideText: 'rgba(255, 255, 255, 0.75)',
-         mainNodeFill: '#040812',
-         mainNodeStroke: '#00b8ff',
-         mainText: '#ffffff',
-         activePath: 'rgba(0, 255, 170, 0.65)',
-         pulseFill: '#ffffff',
-         pulseShadow: '#00ffaa'
+    // Dynamic color and styling helpers based on physics & math properties
+    const getThemeColors = () => {
+      return propsRef.current.palette === 'light' ? {
+        pulseFill: '#0064c8',
+        pulseShadow: '#00b8ff',
+        activePath: 'rgba(0, 100, 200, 0.7)'
+      } : {
+        pulseFill: '#ffffff',
+        pulseShadow: '#00ffaa',
+        activePath: 'rgba(0, 255, 170, 0.65)'
+      };
+    };
+    const theme = getThemeColors();
+
+    const getNodeColor = (node: Node) => {
+        // Create a real cascading rainbow
+        // Hue circles the full 360 degrees as depth increases
+        const baseHue = (node.depth * 15) % 360;
+        // Shift odd nodes slightly so branches diverge in color
+        const hue = (baseHue + (node.id % 2 === 0 ? 0 : 35)) % 360;
+        
+        // Gentler depth fade so clusters remain bright
+        const depthRatio = Math.min(1, Math.max(0, 1 - node.depth / 120));
+        
+        if (propsRef.current.palette === 'dark') {
+            if (node.isMainPath) return '#ffffff';
+            // Boost base luminosity massively (60% base)
+            const lum = 60 + 25 * depthRatio;
+            return `hsl(${hue}, 100%, ${lum}%)`; // 100% saturation for full rainbow pop
+        } else {
+            if (node.isMainPath) return '#000000';
+            const lum = 50 - 20 * depthRatio;
+            return `hsl(${hue}, 95%, ${lum}%)`;
+        }
+    };
+
+    const getEdgeColor = (edge: {source: Node, target: Node, isMain?: boolean}) => {
+        if (edge.isMain) return propsRef.current.palette === 'dark' ? 'rgba(0, 240, 255, 0.95)' : 'rgba(0, 80, 220, 0.85)';
+        const c = getNodeColor(edge.target);
+        // Boost side edge alpha to 0.55
+        return c.replace(')', ', 0.55)').replace('hsl', 'hsla');
+    };
+
+    const getNodeRadius = (node: Node, isHovered: boolean) => {
+        const baseR = 3.5 + Math.log10(node.id) * 2.5 + Math.log10(node.weight || 1) * 1.5;
+        const size = node.isMainPath ? baseR * 1.3 : baseR;
+        return isHovered ? size * 1.4 : size;
+    };
+
+    const getEdgeWidth = (edge: {source: Node, target: Node, isMain?: boolean}) => {
+        const w = 0.5 + Math.log10(edge.target.weight || 1) * 1.5;
+        return edge.isMain ? w * 2.5 : w;
+    };
+
+    const getDepthAlpha = (node: Node) => {
+        // High base alpha so side clusters don't disappear
+        return Math.max(0.65, 1 - (node.depth / 100));
     };
 
     // Helper: Draw single edge path (straight or curved)
-    const traceEdge = (edge: {source: Node, target: Node}) => {
+    const traceEdge = (edge: {source: Node, target: Node, isMain?: boolean}) => {
       const x1 = edge.source.x;
       const y1 = edge.source.y;
       const x2 = edge.target.x;
@@ -584,8 +616,10 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
         const dy = y2 - y1;
         const dist = Math.sqrt(dx * dx + dy * dy);
         
-        // Bend direction based on node ID to keep it deterministic
-        const offset = dist * 0.12 * (edge.target.id % 2 === 0 ? 1 : -1);
+        // Bend severity proportional to the math leap!
+        const isEvenStep = edge.target.id === edge.source.id * 2;
+        const severity = isEvenStep ? 0.05 : 0.22;
+        const offset = dist * severity * (edge.target.id % 2 === 0 ? 1 : -1);
         const len = Math.sqrt(dx * dx + dy * dy);
         const nx = -dy / (len || 1);
         const ny = dx / (len || 1);
@@ -600,29 +634,41 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       }
     };
 
+    ctx.save();
+    // Additive blending for that glorious cosmic nebula look where dense branches overlap
+    if (propsRef.current.palette === 'dark') {
+      ctx.globalCompositeOperation = 'lighter';
+    } else {
+      ctx.globalCompositeOperation = 'multiply';
+    }
+
     // 1. Draw SIDE EDGES
-    ctx.beginPath();
     for (const edge of edges.current) {
       if (!edge.isMain) {
         if (!isVisible(edge.source.x, edge.source.y) && !isVisible(edge.target.x, edge.target.y)) continue;
+        ctx.beginPath();
         traceEdge(edge);
+        ctx.strokeStyle = getEdgeColor(edge);
+        ctx.lineWidth = getEdgeWidth(edge) / t.k;
+        ctx.globalAlpha = getDepthAlpha(edge.target);
+        ctx.stroke();
       }
     }
-    ctx.strokeStyle = colors.sideEdge;
-    ctx.lineWidth = 1.6 / t.k;
-    ctx.stroke();
     
     // 2. Draw MAIN PATH EDGES
-    ctx.beginPath();
+    ctx.globalAlpha = 1.0;
     for (const edge of edges.current) {
       if (edge.isMain) {
         if (!isVisible(edge.source.x, edge.source.y) && !isVisible(edge.target.x, edge.target.y)) continue;
+        ctx.beginPath();
         traceEdge(edge);
+        ctx.strokeStyle = getEdgeColor(edge);
+        ctx.lineWidth = getEdgeWidth(edge) / t.k;
+        ctx.stroke();
       }
     }
-    ctx.strokeStyle = colors.mainEdge;
-    ctx.lineWidth = 3.2 / t.k;
-    ctx.stroke();
+    
+    ctx.restore(); // Restore default composite mode before drawing solid nodes
 
     // 3. Draw HOVERED EDGES
     if (hoveredNode) {
@@ -634,66 +680,73 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
         }
       }
       ctx.save();
-      ctx.strokeStyle = colors.hoveredEdge;
+      ctx.strokeStyle = propsRef.current.palette === 'dark' ? '#ff00b8' : '#d80073';
       ctx.lineWidth = 4.5 / t.k;
-      ctx.shadowColor = colors.hoveredEdge;
+      ctx.shadowColor = propsRef.current.palette === 'dark' ? '#ff00b8' : '#d80073';
       ctx.shadowBlur = 10 / t.k;
       ctx.stroke();
       ctx.restore();
     }
 
     // 4. Draw SIDE NODES
-    ctx.beginPath();
     for (const node of nodesMap.current.values()) {
       if (!node.isMainPath && isVisible(node.x, node.y)) {
+        ctx.beginPath();
         const isHovered = hoveredNode?.id === node.id || hoveredPathSetRef.current.has(node.id);
-        const r = isHovered ? 12 : 9.5;
+        const r = getNodeRadius(node, isHovered);
         ctx.moveTo(node.x + r, node.y);
         ctx.arc(node.x, node.y, r, 0, Math.PI * 2);
+        
+        ctx.fillStyle = propsRef.current.palette === 'dark' ? '#040812' : '#ffffff';
+        ctx.globalAlpha = getDepthAlpha(node);
+        ctx.fill();
+        
+        ctx.lineWidth = 1.8 / t.k;
+        ctx.strokeStyle = getNodeColor(node);
+        ctx.stroke();
       }
     }
-    ctx.fillStyle = colors.sideNodeFill;
-    ctx.fill();
-    ctx.lineWidth = 1.8 / t.k;
-    ctx.strokeStyle = colors.sideNodeStroke;
-    ctx.stroke();
 
     // 5. Draw SIDE NODE TEXT (only when zoomed in)
     if (t.k > 0.8) {
-      ctx.fillStyle = colors.sideText;
       ctx.font = `600 ${8.5}px 'Outfit', sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       for (const node of nodesMap.current.values()) {
         if (!node.isMainPath && isVisible(node.x, node.y)) {
+          ctx.globalAlpha = getDepthAlpha(node);
+          ctx.fillStyle = propsRef.current.palette === 'dark' ? 'rgba(255,255,255,0.75)' : 'rgba(0,0,0,0.75)';
           ctx.fillText(node.id.toString(), node.x, node.y);
         }
       }
     }
 
     // 6. Draw MAIN NODES
-    ctx.beginPath();
+    ctx.globalAlpha = 1.0;
     for (const node of nodesMap.current.values()) {
       if (node.isMainPath && isVisible(node.x, node.y)) {
+        ctx.beginPath();
         const isHovered = hoveredNode?.id === node.id || hoveredPathSetRef.current.has(node.id);
-        const r = isHovered ? 18.5 : 15.5;
+        const r = getNodeRadius(node, isHovered);
         ctx.moveTo(node.x + r, node.y);
         ctx.arc(node.x, node.y, r, 0, Math.PI * 2);
+        
+        ctx.fillStyle = propsRef.current.palette === 'dark' ? '#040812' : '#ffffff';
+        ctx.fill();
+        
+        ctx.lineWidth = 2.8 / t.k;
+        ctx.strokeStyle = getNodeColor(node);
+        ctx.stroke();
       }
     }
-    ctx.fillStyle = colors.mainNodeFill;
-    ctx.fill();
-    ctx.lineWidth = 2.4 / t.k;
-    ctx.strokeStyle = colors.mainNodeStroke;
-    ctx.stroke();
 
     // 7. Draw MAIN NODE TEXT
-    ctx.fillStyle = colors.mainText;
     ctx.font = `700 ${11.5}px 'Outfit', sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     for (const node of nodesMap.current.values()) {
       if (node.isMainPath && isVisible(node.x, node.y)) {
+        ctx.fillStyle = propsRef.current.palette === 'dark' ? '#ffffff' : '#000000';
         ctx.fillText(node.id.toString(), node.x, node.y);
       }
     }
@@ -708,7 +761,7 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       for (let i = 0; i < nodes.length - 1; i++) {
         traceEdge({ source: nodes[i], target: nodes[i + 1] });
       }
-      ctx.strokeStyle = colors.activePath;
+      ctx.strokeStyle = theme.activePath;
       ctx.lineWidth = 5 / t.k;
       ctx.stroke();
       
@@ -728,7 +781,10 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
           const dx = n2.x - n1.x;
           const dy = n2.y - n1.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
-          const offset = dist * 0.12 * (n2.id % 2 === 0 ? 1 : -1);
+          
+          const isEvenStep = n2.id === n1.id * 2;
+          const severity = isEvenStep ? 0.05 : 0.22;
+          const offset = dist * severity * (n2.id % 2 === 0 ? 1 : -1);
           const len = Math.sqrt(dx*dx + dy*dy);
           const nx = -dy / (len || 1);
           const ny = dx / (len || 1);
@@ -749,7 +805,7 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
             vy: (Math.random() - 0.5) * 1.6,
             alpha: 1.0,
             size: Math.random() * 2.8 + 1.2,
-            color: propsRef.current.palette === 'light' ? '#0064c8' : '#00ffaa'
+            color: theme.pulseFill
           });
         }
 
@@ -757,8 +813,8 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
         ctx.save();
         ctx.beginPath();
         ctx.arc(px, py, 7 / t.k, 0, Math.PI * 2);
-        ctx.fillStyle = colors.pulseFill;
-        ctx.shadowColor = colors.pulseShadow;
+        ctx.fillStyle = theme.pulseFill;
+        ctx.shadowColor = theme.pulseShadow;
         ctx.shadowBlur = 24 / t.k;
         ctx.fill();
         ctx.restore();
@@ -898,6 +954,20 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
           }
           branchTips = newTips;
           panic++;
+      }
+
+      // Calculate subtree weights for thickness/sizing
+      const nodesArray = Array.from(nodesMap.current.values()).sort((a, b) => b.depth - a.depth);
+      for (const node of nodesArray) {
+        node.weight = 1;
+      }
+      for (const node of nodesArray) {
+        if (node.parent !== null) {
+          const p = nodesMap.current.get(node.parent);
+          if (p) {
+            p.weight = (p.weight || 0) + (node.weight || 1);
+          }
+        }
       }
 
       // 3. Pre-calculate layout & instantiate forces
