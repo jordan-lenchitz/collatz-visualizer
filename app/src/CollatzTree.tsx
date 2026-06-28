@@ -35,6 +35,7 @@ interface CollatzTreeProps {
   hoveredNodeId: number | null;
   onHoverNode: (id: number | null) => void;
   onSelectNode: (id: number) => void;
+  onRequestSeed?: (id: number) => void;
   onPathComplete?: () => void;
 }
 
@@ -1065,7 +1066,7 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
         transformRef.current = e.transform;
       });
 
-    d3.select(canvas).call(zoom as any);
+    d3.select(canvas).call(zoom as any).on("dblclick.zoom", null);
     
     const initialTransform = d3.zoomIdentity.translate(canvas.width / 2, canvas.height * 0.85);
     transformRef.current = initialTransform;
@@ -1080,6 +1081,9 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
     // Node hovering & selection on canvas click
     let startX = 0;
     let startY = 0;
+    let clickCount = 0;
+    let lastClickTime = 0;
+    let lastClickedNodeId: number | null = null;
 
     const handleMouseMove = (e: MouseEvent) => {
       const canvasNode = canvasRef.current;
@@ -1116,7 +1120,7 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       const dy = e.clientY - startY;
       const dist = Math.sqrt(dx * dx + dy * dy);
       
-      if (dist < 4) { // registers click only if mouse didn't drag
+      if (dist < 10) { // registers click only if mouse didn't drag too far
         const canvasNode = canvasRef.current;
         if (!canvasNode) return;
         const rect = canvasNode.getBoundingClientRect();
@@ -1130,15 +1134,28 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
         for (const node of nodesMap.current.values()) {
           const dx = node.x - tx;
           const dy = node.y - ty;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < minDistance) {
-            minDistance = dist;
+          const distToNode = Math.sqrt(dx * dx + dy * dy);
+          if (distToNode < minDistance) {
+            minDistance = distToNode;
             closestNode = node;
           }
         }
         
-        if (closestNode && propsRef.current.onSelectNode) {
-          propsRef.current.onSelectNode(closestNode.id);
+        if (closestNode) {
+          const now = Date.now();
+          // increased time to 800ms between clicks to be very generous
+          if (now - lastClickTime < 800 && lastClickedNodeId === closestNode.id) {
+            clickCount++;
+          } else {
+            clickCount = 1;
+          }
+          lastClickTime = now;
+          lastClickedNodeId = closestNode.id;
+
+          if (clickCount >= 3 && propsRef.current.onRequestSeed) {
+            clickCount = 0;
+            propsRef.current.onRequestSeed(closestNode.id);
+          }
         }
       }
     };

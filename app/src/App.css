@@ -3,6 +3,8 @@
   width: 100vw;
   height: 100vh;
   overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .canvas-container {
@@ -169,29 +171,25 @@
 }
 
 .action-btn {
-  background: linear-gradient(135deg, rgba(0, 255, 170, 0.2), rgba(0, 184, 255, 0.2));
-  border: 1px solid rgba(0, 255, 170, 0.5);
-  border-radius: 25px;
-  padding: 14px 32px;
-  color: var(--text-color);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 8px 16px;
+  color: inherit;
   font-family: 'Outfit', sans-serif;
-  font-weight: 500;
-  font-size: 1.05rem;
+  font-weight: 400;
+  font-size: 0.9rem;
   cursor: pointer;
-  letter-spacing: 0.5px;
-  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s ease;
 }
 
 .action-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, rgba(0, 255, 170, 0.4), rgba(0, 184, 255, 0.4));
-  border-color: rgba(0, 255, 170, 1);
-  box-shadow: 0 10px 30px rgba(0, 255, 170, 0.4), inset 0 0 15px rgba(0, 255, 170, 0.3);
-  transform: translateY(-3px) scale(1.02);
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.4);
 }
 
 .action-btn:active:not(:disabled) {
-  transform: translateY(1px) scale(0.98);
+  transform: translateY(1px);
 }
 
 .action-btn:disabled {
@@ -201,11 +199,9 @@
 }
 
 .action-btn.explore-active {
-  background: linear-gradient(135deg, rgba(255, 170, 0, 0.4), rgba(255, 0, 184, 0.4));
-  border-color: #ff00b8;
-  color: #ff00b8;
-  box-shadow: 0 0 20px rgba(255, 0, 184, 0.4), inset 0 0 15px rgba(255, 0, 184, 0.3);
-  text-shadow: 0 0 8px rgba(255, 0, 184, 0.8);
+  background: rgba(255, 170, 0, 0.2);
+  border-color: #ffaa00;
+  color: #ffaa00;
 }
 
 .top-left-container {
@@ -472,4 +468,144 @@
   font-size: 0.7rem;
   opacity: 0.7;
   text-align: center;
+}
+
+.floating-pause-btn {
+  position: absolute;
+  bottom: 25px;
+  right: 25px;
+  z-index: 100;
+  background: rgba(10, 15, 30, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 8px 16px;
+  color: rgba(255, 255, 255, 0.7);
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.floating-pause-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+@media (max-width: 768px) {
+  .floating-pause-btn {
+    bottom: auto;
+    top: 75px;
+    right: auto;
+    left: 15px;
+    transform: none;
+  }
+}
+
+.app-container.light .floating-pause-btn {
+  background: rgba(255, 255, 255, 0.6);
+  color: rgba(0, 0, 0, 0.7);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+.app-container.light .floating-pause-btn:hover {
+  background: rgba(255, 255, 255, 0.9);
+  color: #000;
+  border-color: rgba(0, 0, 0, 0.3);
+}
+
+/* Modal styles */
+.modal-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.3s ease;
+}
+
+.modal-content {
+  background: rgba(15, 20, 35, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 16px;
+  padding: 30px;
+  max-width: 400px;
+  text-align: center;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+  color: white;
+}
+
+.app-container.light .modal-content {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(0, 0, 0, 0.2);
+  color: black;
+}
+
+.modal-content h2 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  font-weight: 700;
+  color: var(--primary-glow, #00ffaa);
+}
+
+.app-container.light .modal-content h2 {
+  color: #0064c8;
+}
+
+.modal-content p {
+  margin-bottom: 25px;
+  opacity: 0.9;
+  line-height: 1.5;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+}
+
+.modal-btn {
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.modal-btn.confirm {
+  background: linear-gradient(135deg, rgba(0, 255, 170, 0.8), rgba(0, 184, 255, 0.8));
+  color: #000;
+}
+
+.modal-btn.confirm:hover {
+  background: linear-gradient(135deg, rgba(0, 255, 170, 1), rgba(0, 184, 255, 1));
+}
+
+.modal-btn.cancel {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.app-container.light .modal-btn.cancel {
+  background: rgba(0, 0, 0, 0.05);
+  color: black;
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
+.modal-btn.cancel:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.app-container.light .modal-btn.cancel:hover {
+  background: rgba(0, 0, 0, 0.1);
 }

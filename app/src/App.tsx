@@ -22,6 +22,7 @@ function App() {
   const [isPlanMode, setIsPlanMode] = useState(false);
   const [showControls, setShowControls] = useState(false);
   const [sequence, setSequence] = useState<number[]>([]);
+  const [pendingSeed, setPendingSeed] = useState<number | null>(null);
 
   const treeRef = useRef<CollatzTreeRef>(null);
 
@@ -51,7 +52,6 @@ function App() {
         setTimeout(() => {
           treeRef.current?.buildTree(num, () => {
             setTreeState('BUILT');
-            treeRef.current?.followPathDown(num);
             confetti({
               particleCount: 150,
               spread: 80,
@@ -134,6 +134,7 @@ function App() {
         hoveredNodeId={hoveredNodeId}
         onHoverNode={setHoveredNodeId}
         onSelectNode={handleSelectNode}
+        onRequestSeed={setPendingSeed}
         onPathComplete={() => {
           confetti({
             particleCount: 200,
@@ -143,6 +144,14 @@ function App() {
           });
         }}
       />
+
+      <button 
+        className="floating-pause-btn" 
+        onClick={() => setIsPaused(!isPaused)}
+        aria-label={isPaused ? 'Resume Animation' : 'Pause Animation'}
+      >
+        {isPaused ? '▶ resume' : '⏸ pause'}
+      </button>
 
       <div className="ui-overlay" role="region" aria-label="Main Controls">
         <label htmlFor="seed-input" className="sr-only">Seed Number</label>
@@ -169,7 +178,7 @@ function App() {
         >
           {treeState === 'IDLE' && 'Plant Seed & Grow Tree'}
           {treeState === 'BUILDING' && 'Stop Growing (Cancel)'}
-          {treeState === 'BUILT' && 'Follow Path to One'}
+          {treeState === 'BUILT' && 'When Ready'}
         </button>
         <button
           className={`action-btn ${isExploreMode ? 'explore-active' : ''}`}
@@ -276,6 +285,19 @@ function App() {
           </div>
         )}
       </div>
+
+      {pendingSeed !== null && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h2>Plant New Seed?</h2>
+            <p>Do you want to clear the current tree and use <strong>{pendingSeed}</strong> as the new seed?</p>
+            <div className="modal-actions">
+              <button className="modal-btn confirm" onClick={() => { handleSelectNode(pendingSeed); setPendingSeed(null); }}>Yes, Grow</button>
+              <button className="modal-btn cancel" onClick={() => setPendingSeed(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
