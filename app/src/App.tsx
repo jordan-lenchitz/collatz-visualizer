@@ -171,22 +171,22 @@ function App() {
           className="action-btn" 
           onClick={handleAction}
           aria-label={
-            treeState === 'IDLE' ? 'Plant Seed and Grow Tree' :
-            treeState === 'BUILDING' ? 'Cancel Tree Growth' :
-            'Follow Path down to One'
+            treeState === 'IDLE' ? 'plant seed and grow tree' :
+            treeState === 'BUILDING' ? 'cancel tree growth' :
+            'follow path down to one'
           }
         >
-          {treeState === 'IDLE' && 'Plant Seed & Grow Tree'}
-          {treeState === 'BUILDING' && 'Stop Growing (Cancel)'}
-          {treeState === 'BUILT' && 'When Ready'}
+          {treeState === 'IDLE' && 'plant seed & grow tree'}
+          {treeState === 'BUILDING' && 'stop growing (cancel)'}
+          {treeState === 'BUILT' && 'head home (to 1)'}
         </button>
         <button
           className={`action-btn ${isExploreMode ? 'explore-active' : ''}`}
           onClick={toggleExploreMode}
           aria-pressed={isExploreMode}
-          aria-label="Toggle free explore camera mode"
+          aria-label="toggle free explore camera mode"
         >
-          {isExploreMode ? 'Stop Exploring' : 'Explore Freely'}
+          {isExploreMode ? 'stop exploring' : 'explore freely'}
         </button>
       </div>
 
@@ -230,8 +230,27 @@ function App() {
                    id="layout-select"
                    className="lowcase-select" 
                    value={layoutMode} 
-                   onChange={e => setLayoutMode(e.target.value as any)}
-                   aria-label="Tree layout mode selection"
+                   onChange={e => {
+                     setLayoutMode(e.target.value as any);
+                     const num = parseInt(seed, 10);
+                     if (!isNaN(num) && num > 0) {
+                       treeRef.current?.stopBuilding();
+                       setTreeState('BUILDING');
+                       updateSequence(num);
+                       setTimeout(() => {
+                         treeRef.current?.buildTree(num, () => {
+                           setTreeState('BUILT');
+                           confetti({
+                             particleCount: 150,
+                             spread: 80,
+                             origin: { y: 0.6 },
+                             colors: palette === 'dark' ? ['#00ffaa', '#00b8ff', '#ffffff'] : ['#009650', '#0064c8', '#ffffff']
+                           });
+                         });
+                       }, 50);
+                     }
+                   }}
+                   aria-label="tree layout mode selection"
                  >
                    <option value="organic">organic</option>
                    <option value="radial">celestial</option>
