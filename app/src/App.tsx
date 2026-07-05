@@ -12,7 +12,7 @@ function App() {
   const [isPaused, setIsPaused] = useState(false);
   const [palette, setPalette] = useState<'dark' | 'light'>('dark');
   
-  const [layoutMode, setLayoutMode] = useState<'organic' | 'radial' | 'symmetric' | 'force'>('organic');
+  const [layoutMode, setLayoutMode] = useState<'organic' | 'radial' | 'symmetric' | 'force' | 'numerical'>('numerical');
   const [edgeStyle, setEdgeStyle] = useState<'curved' | 'straight'>('curved');
   
   // High density by default, controlled in backend for performance
@@ -173,12 +173,12 @@ function App() {
           aria-label={
             treeState === 'IDLE' ? 'plant seed and grow tree' :
             treeState === 'BUILDING' ? 'cancel tree growth' :
-            'follow path down to one'
+            'trace path upward from one'
           }
         >
           {treeState === 'IDLE' && 'plant seed & grow tree'}
           {treeState === 'BUILDING' && 'stop growing (cancel)'}
-          {treeState === 'BUILT' && 'head home (to 1)'}
+          {treeState === 'BUILT' && 'follow path home (to 1)'}
         </button>
         <button
           className={`action-btn ${isExploreMode ? 'explore-active' : ''}`}
@@ -252,6 +252,7 @@ function App() {
                    }}
                    aria-label="tree layout mode selection"
                  >
+                   <option value="numerical">numerical</option>
                    <option value="organic">organic</option>
                    <option value="radial">celestial</option>
                    <option value="symmetric">symmetric</option>
@@ -308,11 +309,11 @@ function App() {
       {pendingSeed !== null && (
         <div className="modal-overlay">
           <div className="modal-content">
-            <h2>Plant New Seed?</h2>
-            <p>Do you want to clear the current tree and use <strong>{pendingSeed}</strong> as the new seed?</p>
+            <h2>plant new seed?</h2>
+            <p>clear the current tree and use <strong>{pendingSeed}</strong> as the new seed?</p>
             <div className="modal-actions">
-              <button className="modal-btn confirm" onClick={() => { handleSelectNode(pendingSeed); setPendingSeed(null); }}>Yes, Grow</button>
-              <button className="modal-btn cancel" onClick={() => setPendingSeed(null)}>Cancel</button>
+              <button className="modal-btn confirm" onClick={() => { handleSelectNode(pendingSeed); setPendingSeed(null); }}>yes, grow</button>
+              <button className="modal-btn cancel" onClick={() => setPendingSeed(null)}>cancel</button>
             </div>
           </div>
         </div>

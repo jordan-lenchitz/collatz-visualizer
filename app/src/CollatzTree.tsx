@@ -29,7 +29,7 @@ interface CollatzTreeProps {
   speed: number;
   isPaused: boolean;
   palette: 'dark' | 'light';
-  layoutMode: 'organic' | 'radial' | 'symmetric' | 'force';
+  layoutMode: 'organic' | 'radial' | 'symmetric' | 'force' | 'numerical';
   edgeStyle: 'curved' | 'straight';
   density: 'low' | 'medium' | 'high';
   hoveredNodeId: number | null;
@@ -162,17 +162,19 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
         const isEvenChild = childId === id * 2;
 
         if (isEvenChild) {
-          angle += -0.15 + Math.sin(childId) * 0.02;
+          // Gentle sway like a real tree instead of a constant curl
+          angle += Math.sin(parentNode.depth * 0.12) * 0.06 + Math.sin(childId) * 0.01;
         } else {
-          angle += 0.55 + Math.sin(childId) * 0.02;
+          // Odd branches shoot out at a natural angle
+          angle += 0.45 + Math.sin(childId) * 0.02;
         }
 
-        // Slight self-centering pull upwards
+        // Stronger self-centering pull upwards to keep the tree upright
         const upAngle = -Math.PI / 2;
         let diff = upAngle - angle;
         while (diff > Math.PI) diff -= 2 * Math.PI;
         while (diff < -Math.PI) diff += 2 * Math.PI;
-        angle += diff * 0.08;
+        angle += diff * 0.15;
 
         const jumpFactor = isEvenChild ? 1.0 : 2.5;
         const len = (childNode.isMainPath ? 50 : 35) * jumpFactor * Math.pow(0.993, parentNode.depth);
@@ -286,6 +288,16 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
     traverse(1);
   };
 
+  // 4. Numerical layout (x proportional to log of numerical value, y based on depth to grow upward)
+  const computeNumericalLayout = (nodes: Map<number, Node>) => {
+    for (const node of nodes.values()) {
+      node.layoutY = -node.depth * 52; // grow upward from bottom
+      // Math.log2(1) is 0, so root is at x=0. As numbers get larger, they stretch to the right.
+      // Scaling by 35 keeps the tree a reasonable width for massive seeds like 671744.
+      node.layoutX = Math.log2(node.id) * 35; 
+    }
+  };
+
   // 4. Universal Force-directed Simulation layout
   const updateForceSimulation = () => {
     const mode = propsRef.current.layoutMode;
@@ -344,6 +356,8 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       computeRadialLayout(nodes);
     } else if (mode === 'symmetric') {
       computeSymmetricLayout(nodes);
+    } else if (mode === 'numerical') {
+      computeNumericalLayout(nodes);
     }
     
     // Apply universal anti-collision simulation for all modes
@@ -448,13 +462,7 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
     return node;
   };
 
-  // Evaluate point along a quadratic bezier curve
-  const getPointOnCurve = (x1: number, y1: number, cx: number, cy: number, x2: number, y2: number, t: number) => {
-    const mt = 1 - t;
-    const px = mt * mt * x1 + 2 * mt * t * cx + t * t * x2;
-    const py = mt * mt * y1 + 2 * mt * t * cy + t * t * y2;
-    return [px, py];
-  };
+
 
   const draw = (time: number) => {
     const dt = lastTimeRef.current ? (time - lastTimeRef.current) : 16.6;
@@ -588,7 +596,7 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
     };
 
     const getNodeRadius = (node: Node, isHovered: boolean) => {
-        const baseR = 3.5 + Math.log10(node.id) * 2.5 + Math.log10(node.weight || 1) * 1.5;
+        const baseR = 5.0 + Math.log10(node.id) * 3.5 + Math.log10(node.weight || 1) * 2.0;
         const size = node.isMainPath ? baseR * 1.3 : baseR;
         return isHovered ? size * 1.4 : size;
     };
@@ -618,8 +626,9 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
         const dist = Math.sqrt(dx * dx + dy * dy);
         
         // Bend severity proportional to the math leap!
+        // Reduced severity for a more elegant, taut look without excessive concavity
         const isEvenStep = edge.target.id === edge.source.id * 2;
-        const severity = isEvenStep ? 0.05 : 0.22;
+        const severity = isEvenStep ? 0.02 : 0.12;
         const offset = dist * severity * (edge.target.id % 2 === 0 ? 1 : -1);
         const len = Math.sqrt(dx * dx + dy * dy);
         const nx = -dy / (len || 1);
@@ -710,7 +719,7 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
 
     // 5. Draw SIDE NODE TEXT (only when zoomed in)
     if (t.k > 0.8) {
-      ctx.font = `600 ${8.5}px 'Outfit', sans-serif`;
+      ctx.font = `600 ${6.5}px 'Outfit', sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       for (const node of nodesMap.current.values()) {
@@ -742,7 +751,7 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
     }
 
     // 7. Draw MAIN NODE TEXT
-    ctx.font = `700 ${11.5}px 'Outfit', sans-serif`;
+    ctx.font = `700 ${9}px 'Outfit', sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     for (const node of nodesMap.current.values()) {
@@ -752,56 +761,42 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       }
     }
 
-    // 8. Draw active descent path & pulse
+    // 8. Draw active descent path & teleport pulse
     const active = activePathRef.current;
     if (active && active.nodes.length > 0) {
       const nodes = active.nodes;
       
-      // Highlight the path being traveled
+      const currentIdx = Math.floor(active.progress);
+      
+      // Highlight the path being traveled (from 0 up to current progress)
       ctx.beginPath();
-      for (let i = 0; i < nodes.length - 1; i++) {
+      for (let i = 0; i < Math.min(currentIdx, nodes.length - 1); i++) {
         traceEdge({ source: nodes[i], target: nodes[i + 1] });
       }
       ctx.strokeStyle = theme.activePath;
       ctx.lineWidth = 5 / t.k;
       ctx.stroke();
       
-      const targetIdx = Math.floor(active.progress);
-      if (targetIdx < nodes.length - 1) {
-        const n1 = nodes[targetIdx];
-        const n2 = nodes[targetIdx + 1];
-        const subProgress = active.progress - targetIdx;
+      // Leave brighter marks on the edge of all nodes we've visited so far!
+      for (let i = 0; i <= currentIdx && i < nodes.length; i++) {
+         const n = nodes[i];
+         ctx.beginPath();
+         // Slightly larger radius than the base node to form a glowing ring
+         const r = getNodeRadius(n, false) + 3.5 / t.k; 
+         ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+         ctx.strokeStyle = theme.pulseFill; 
+         ctx.lineWidth = 3 / t.k;
+         ctx.stroke();
+      }
+      
+      if (currentIdx < nodes.length) {
+        const currentNode = nodes[currentIdx];
         
-        let px = n1.x + (n2.x - n1.x) * subProgress;
-        let py = n1.y + (n2.y - n1.y) * subProgress;
-
-        // Trace the exact curved line if layout is curved
-        if (propsRef.current.edgeStyle === 'curved') {
-          const mx = (n1.x + n2.x) / 2;
-          const my = (n1.y + n2.y) / 2;
-          const dx = n2.x - n1.x;
-          const dy = n2.y - n1.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          
-          const isEvenStep = n2.id === n1.id * 2;
-          const severity = isEvenStep ? 0.05 : 0.22;
-          const offset = dist * severity * (n2.id % 2 === 0 ? 1 : -1);
-          const len = Math.sqrt(dx*dx + dy*dy);
-          const nx = -dy / (len || 1);
-          const ny = dx / (len || 1);
-          const cx = mx + nx * offset;
-          const cy = my + ny * offset;
-
-          const [cpx, cpy] = getPointOnCurve(n1.x, n1.y, cx, cy, n2.x, n2.y, subProgress);
-          px = cpx;
-          py = cpy;
-        }
-        
-        // Spark particles wake
+        // Spark particles wake at the current node
         if (!propsRef.current.isPaused && Math.random() < 0.6) {
           particlesRef.current.push({
-            x: px,
-            y: py,
+            x: currentNode.x,
+            y: currentNode.y,
             vx: (Math.random() - 0.5) * 1.6,
             vy: (Math.random() - 0.5) * 1.6,
             alpha: 1.0,
@@ -810,29 +805,32 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
           });
         }
 
-        // Draw traveling comet pulse
+        // Draw traveling comet pulse exactly on the edge of the teleported node
         ctx.save();
         ctx.beginPath();
-        ctx.arc(px, py, 7 / t.k, 0, Math.PI * 2);
-        ctx.fillStyle = theme.pulseFill;
+        const r = getNodeRadius(currentNode, false) + 5 / t.k;
+        ctx.arc(currentNode.x, currentNode.y, r, 0, Math.PI * 2);
+        ctx.strokeStyle = theme.pulseFill;
+        ctx.lineWidth = 4 / t.k;
         ctx.shadowColor = theme.pulseShadow;
         ctx.shadowBlur = 24 / t.k;
-        ctx.fill();
+        ctx.stroke();
         ctx.restore();
 
-        // Center camera to follow descent
+        // Center camera to follow teleportation
         const targetK = 1.45;
         cameraTargetRef.current = {
-          x: width / 2 - px * targetK,
-          y: height * 0.5 - py * targetK,
+          x: width / 2 - currentNode.x * targetK,
+          y: height * 0.5 - currentNode.y * targetK,
           k: targetK
         };
       }
 
       if (!propsRef.current.isPaused) {
+        // We use the same base speed but multiplied because discrete looks slower than continuous
         const baseSpeed = [0.11, 0.055, 0.02, 0.006, 0.0017][propsRef.current.speed - 1] || 0.02;
         const wasComplete = active.progress >= nodes.length - 1;
-        active.progress += baseSpeed * (dt / 16.6);
+        active.progress += baseSpeed * (dt / 16.6) * 1.8;
         if (active.progress >= nodes.length - 1) {
            active.progress = nodes.length - 1;
            if (!wasComplete && propsRef.current.onPathComplete) {
@@ -876,7 +874,9 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       
       initSingleNode();
       
-      let current = seed;
+      // Let the browser paint the cleared screen before we freeze it with heavy computation
+      activeTaskRef.current.timeoutId = window.setTimeout(() => {
+        let current = seed;
       const pathSeq: number[] = [];
       while (current > 1) {
         pathSeq.push(current);
@@ -997,9 +997,10 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
           };
       }
 
-      activeTaskRef.current.isRunning = false;
-      setIsAnimating(false);
-      onComplete();
+        activeTaskRef.current.isRunning = false;
+        setIsAnimating(false);
+        onComplete();
+      }, 50);
     },
     followPathDown: (seed: number) => {
       const fullPath: Node[] = [];
@@ -1010,7 +1011,6 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
         fullPath.push(n);
         c = n.parent;
       }
-
       activePathRef.current = {
         nodes: fullPath,
         progress: 0
@@ -1081,9 +1081,14 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
     // Node hovering & selection on canvas click
     let startX = 0;
     let startY = 0;
-    let clickCount = 0;
-    let lastClickTime = 0;
-    let lastClickedNodeId: number | null = null;
+    let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+    
+    const clearLongPress = () => {
+      if (longPressTimer) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+      }
+    };
 
     const handleMouseMove = (e: MouseEvent) => {
       const canvasNode = canvasRef.current;
@@ -1092,17 +1097,24 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       const mouseX = e.clientX - rect.left;
       const mouseY = e.clientY - rect.top;
       
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > 10) {
+        clearLongPress();
+      }
+      
       const [tx, ty] = transformRef.current.invert([mouseX, mouseY]);
       
       let closestNode: Node | null = null;
       let minDistance = 22; // pixels hover threshold
       
       for (const node of nodesMap.current.values()) {
-        const dx = node.x - tx;
-        const dy = node.y - ty;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < minDistance) {
-          minDistance = dist;
+        const dxNode = node.x - tx;
+        const dyNode = node.y - ty;
+        const distNode = Math.sqrt(dxNode * dxNode + dyNode * dyNode);
+        if (distNode < minDistance) {
+          minDistance = distNode;
           closestNode = node;
         }
       }
@@ -1113,56 +1125,48 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
     const handleMouseDown = (e: MouseEvent) => {
       startX = e.clientX;
       startY = e.clientY;
-    };
-
-    const handleMouseUp = (e: MouseEvent) => {
-      const dx = e.clientX - startX;
-      const dy = e.clientY - startY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
       
-      if (dist < 10) { // registers click only if mouse didn't drag too far
-        const canvasNode = canvasRef.current;
-        if (!canvasNode) return;
-        const rect = canvasNode.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
-        const [tx, ty] = transformRef.current.invert([mouseX, mouseY]);
-        
-        let closestNode: Node | null = null;
-        let minDistance = 22;
-        
-        for (const node of nodesMap.current.values()) {
-          const dx = node.x - tx;
-          const dy = node.y - ty;
-          const distToNode = Math.sqrt(dx * dx + dy * dy);
-          if (distToNode < minDistance) {
-            minDistance = distToNode;
-            closestNode = node;
-          }
-        }
-        
-        if (closestNode) {
-          const now = Date.now();
-          // increased time to 800ms between clicks to be very generous
-          if (now - lastClickTime < 800 && lastClickedNodeId === closestNode.id) {
-            clickCount++;
-          } else {
-            clickCount = 1;
-          }
-          lastClickTime = now;
-          lastClickedNodeId = closestNode.id;
-
-          if (clickCount >= 3 && propsRef.current.onRequestSeed) {
-            clickCount = 0;
-            propsRef.current.onRequestSeed(closestNode.id);
-          }
+      const canvasNode = canvasRef.current;
+      if (!canvasNode) return;
+      const rect = canvasNode.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      const [tx, ty] = transformRef.current.invert([mouseX, mouseY]);
+      
+      let closestNode: Node | null = null;
+      let minDistance = 22;
+      
+      for (const node of nodesMap.current.values()) {
+        const dxNode = node.x - tx;
+        const dyNode = node.y - ty;
+        const distToNode = Math.sqrt(dxNode * dxNode + dyNode * dyNode);
+        if (distToNode < minDistance) {
+          minDistance = distToNode;
+          closestNode = node;
         }
       }
+      
+      if (closestNode) {
+        longPressTimer = setTimeout(() => {
+          if (propsRef.current.onRequestSeed) {
+            propsRef.current.onRequestSeed(closestNode!.id);
+          }
+        }, 3000);
+      }
+    };
+
+    const handleMouseUp = () => {
+      clearLongPress();
+    };
+
+    const handleMouseLeave = () => {
+      clearLongPress();
     };
 
     canvas.addEventListener('mousemove', handleMouseMove);
     canvas.addEventListener('mousedown', handleMouseDown);
     canvas.addEventListener('mouseup', handleMouseUp);
+    canvas.addEventListener('mouseleave', handleMouseLeave);
 
     animationRef.current = requestAnimationFrame(draw);
 
@@ -1171,9 +1175,11 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
       if (activeTaskRef.current.timeoutId) window.clearTimeout(activeTaskRef.current.timeoutId);
       
+      clearLongPress();
       canvas.removeEventListener('mousemove', handleMouseMove);
       canvas.removeEventListener('mousedown', handleMouseDown);
       canvas.removeEventListener('mouseup', handleMouseUp);
+      canvas.removeEventListener('mouseleave', handleMouseLeave);
       
       stopForceSimulation();
     };
@@ -1240,7 +1246,7 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
             )}
           </div>
           <div className="tooltip-footer">
-            click to use as seed
+            hold for 3s to use as seed
           </div>
         </div>
       )}
