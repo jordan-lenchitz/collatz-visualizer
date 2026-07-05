@@ -12,7 +12,7 @@ function App() {
   const [isPaused, setIsPaused] = useState(false);
   const [palette, setPalette] = useState<'dark' | 'light'>('dark');
   
-  const [layoutMode, setLayoutMode] = useState<'organic' | 'radial' | 'symmetric' | 'force' | 'numerical'>('numerical');
+
   const [edgeStyle, setEdgeStyle] = useState<'curved' | 'straight'>('curved');
   
   // High density by default, controlled in backend for performance
@@ -28,6 +28,7 @@ function App() {
 
   useEffect(() => {
     updateSequence(27);
+    // blank screen to start
   }, []);
 
   const updateSequence = (num: number) => {
@@ -128,7 +129,6 @@ function App() {
         speed={speed} 
         isPaused={isPaused} 
         palette={palette} 
-        layoutMode={layoutMode}
         edgeStyle={edgeStyle}
         density={density}
         hoveredNodeId={hoveredNodeId}
@@ -224,41 +224,7 @@ function App() {
                  />
                </div>
 
-               <div className="slider-container">
-                 <label htmlFor="layout-select">tree layout mode</label>
-                 <select 
-                   id="layout-select"
-                   className="lowcase-select" 
-                   value={layoutMode} 
-                   onChange={e => {
-                     setLayoutMode(e.target.value as any);
-                     const num = parseInt(seed, 10);
-                     if (!isNaN(num) && num > 0) {
-                       treeRef.current?.stopBuilding();
-                       setTreeState('BUILDING');
-                       updateSequence(num);
-                       setTimeout(() => {
-                         treeRef.current?.buildTree(num, () => {
-                           setTreeState('BUILT');
-                           confetti({
-                             particleCount: 150,
-                             spread: 80,
-                             origin: { y: 0.6 },
-                             colors: palette === 'dark' ? ['#00ffaa', '#00b8ff', '#ffffff'] : ['#009650', '#0064c8', '#ffffff']
-                           });
-                         });
-                       }, 50);
-                     }
-                   }}
-                   aria-label="tree layout mode selection"
-                 >
-                   <option value="numerical">numerical</option>
-                   <option value="organic">organic</option>
-                   <option value="radial">celestial</option>
-                   <option value="symmetric">symmetric</option>
-                   <option value="force">force galaxy</option>
-                 </select>
-               </div>
+               {/* Layout mode fixed to 'palm' per user request */}
 
                <div className="slider-container">
                  <label htmlFor="edge-select">branch drawing style</label>

@@ -29,7 +29,7 @@ interface CollatzTreeProps {
   speed: number;
   isPaused: boolean;
   palette: 'dark' | 'light';
-  layoutMode: 'organic' | 'radial' | 'symmetric' | 'force' | 'numerical';
+
   edgeStyle: 'curved' | 'straight';
   density: 'low' | 'medium' | 'high';
   hoveredNodeId: number | null;
@@ -128,246 +128,73 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
     }
   };
 
-  // 1. Organic (Harriss-style Fractal) layout
-  const computeOrganicLayout = (nodes: Map<number, Node>) => {
-    const visited = new Set<number>();
+  // Perfect mathematical tree layout using d3.tree
+  const computePalmLayout = (nodes: Map<number, Node>) => {
     const childrenOf = new Map<number, number[]>();
     for (const node of nodes.values()) {
       if (node.parent !== null) {
-        const parentId = node.parent;
-        if (!childrenOf.has(parentId)) childrenOf.set(parentId, []);
-        childrenOf.get(parentId)!.push(node.id);
+        if (!childrenOf.has(node.parent)) childrenOf.set(node.parent, []);
+        childrenOf.get(node.parent)!.push(node.id);
       }
     }
 
-    const root = nodes.get(1);
-    if (root) {
-      root.layoutX = 0;
-      root.layoutY = 0;
-      root.angle = -Math.PI / 2;
-    }
-
-    const traverse = (id: number) => {
-      visited.add(id);
-      const parentNode = nodes.get(id);
-      if (!parentNode) return;
-
+    const buildHierarchy = (id: number): any => {
+      const node = nodes.get(id);
+      if (!node) return null;
       const children = childrenOf.get(id) || [];
-      for (const childId of children) {
-        if (visited.has(childId)) continue;
-        const childNode = nodes.get(childId);
-        if (!childNode) continue;
-
-        let angle = parentNode.angle;
-        const isEvenChild = childId === id * 2;
-
-        if (isEvenChild) {
-          // Gentle sway like a real tree instead of a constant curl
-          angle += Math.sin(parentNode.depth * 0.12) * 0.06 + Math.sin(childId) * 0.01;
-        } else {
-          // Odd branches shoot out at a natural angle
-          angle += 0.45 + Math.sin(childId) * 0.02;
-        }
-
-        // Stronger self-centering pull upwards to keep the tree upright
-        const upAngle = -Math.PI / 2;
-        let diff = upAngle - angle;
-        while (diff > Math.PI) diff -= 2 * Math.PI;
-        while (diff < -Math.PI) diff += 2 * Math.PI;
-        angle += diff * 0.15;
-
-        const jumpFactor = isEvenChild ? 1.0 : 2.5;
-        const len = (childNode.isMainPath ? 50 : 35) * jumpFactor * Math.pow(0.993, parentNode.depth);
-        childNode.angle = angle;
-        childNode.layoutX = (parentNode.layoutX || 0) + Math.cos(angle) * len;
-        childNode.layoutY = (parentNode.layoutY || 0) + Math.sin(angle) * len;
-
-        traverse(childId);
-      }
+      return {
+        id,
+        node,
+        children: children.map(buildHierarchy).filter(Boolean)
+      };
     };
 
-    traverse(1);
-  };
+    const rootData = buildHierarchy(1);
+    if (!rootData) return;
 
-  // 2. Celestial (Radial Spiral) layout
-  const computeRadialLayout = (nodes: Map<number, Node>) => {
-    const visited = new Set<number>();
-    const childrenOf = new Map<number, number[]>();
-    for (const node of nodes.values()) {
-      if (node.parent !== null) {
-        const parentId = node.parent;
-        if (!childrenOf.has(parentId)) childrenOf.set(parentId, []);
-        childrenOf.get(parentId)!.push(node.id);
-      }
-    }
-
-    const root = nodes.get(1);
-    if (root) {
-      root.layoutX = 0;
-      root.layoutY = 0;
-      root.angle = -Math.PI / 2;
-    }
-
-    const traverse = (id: number) => {
-      visited.add(id);
-      const parentNode = nodes.get(id);
-      if (!parentNode) return;
-
-      const children = childrenOf.get(id) || [];
-      for (const childId of children) {
-        if (visited.has(childId)) continue;
-        const childNode = nodes.get(childId);
-        if (!childNode) continue;
-
-        let angle = parentNode.angle;
-        if (childId === id * 2) {
-          angle += 0.22;
-        } else {
-          angle -= 0.82;
-        }
-
-        childNode.angle = angle;
-        const R = childNode.depth * 38;
-        childNode.layoutX = Math.cos(angle) * R;
-        childNode.layoutY = Math.sin(angle) * R;
-
-        traverse(childId);
-      }
-    };
-
-    traverse(1);
-  };
-
-  // 3. Symmetric (Binary Spine) layout
-  const computeSymmetricLayout = (nodes: Map<number, Node>) => {
-    const visited = new Set<number>();
-    const childrenOf = new Map<number, number[]>();
-    for (const node of nodes.values()) {
-      if (node.parent !== null) {
-        const parentId = node.parent;
-        if (!childrenOf.has(parentId)) childrenOf.set(parentId, []);
-        childrenOf.get(parentId)!.push(node.id);
-      }
-    }
-
-    const root = nodes.get(1) as any;
-    if (root) {
-      root.layoutX = 0;
-      root.layoutY = 0;
-      root.span = 600;
-    }
-
-    const traverse = (id: number) => {
-      visited.add(id);
-      const parentNode = nodes.get(id) as any;
-      if (!parentNode) return;
-
-      const children = childrenOf.get(id) || [];
-      const hasTwoChildren = children.length >= 2;
-
-      for (const childId of children) {
-        if (visited.has(childId)) continue;
-        const childNode = nodes.get(childId) as any;
-        if (!childNode) continue;
-
-        childNode.layoutY = -childNode.depth * 52;
-
-        if (hasTwoChildren) {
-          const isEven = childId === id * 2;
-          childNode.span = parentNode.span * 0.5;
-          childNode.layoutX = (parentNode.layoutX || 0) + (isEven ? -parentNode.span * 0.5 : parentNode.span * 0.5);
-        } else {
-          childNode.span = parentNode.span;
-          childNode.layoutX = parentNode.layoutX || 0; // keep straight
-        }
-
-        traverse(childId);
-      }
-    };
-
-    traverse(1);
-  };
-
-  // 4. Numerical layout (x proportional to log of numerical value, y based on depth to grow upward)
-  const computeNumericalLayout = (nodes: Map<number, Node>) => {
-    for (const node of nodes.values()) {
-      node.layoutY = -node.depth * 52; // grow upward from bottom
-      // Math.log2(1) is 0, so root is at x=0. As numbers get larger, they stretch to the right.
-      // Scaling by 35 keeps the tree a reasonable width for massive seeds like 671744.
-      node.layoutX = Math.log2(node.id) * 35; 
-    }
-  };
-
-  // 4. Universal Force-directed Simulation layout
-  const updateForceSimulation = () => {
-    const mode = propsRef.current.layoutMode;
-    const nodeList = Array.from(nodesMap.current.values());
-    const edgeList = edges.current.map(e => ({
-      source: e.source.id,
-      target: e.target.id
-    }));
-
-    if (!simulationRef.current) {
-      simulationRef.current = d3.forceSimulation(nodeList)
-        .velocityDecay(0.6) // Add friction to stop angry bees!
-        .on("tick", () => {
-          // Fix closure bug: iterate over the ref, not the initial captured nodeList
-          for (const node of nodesMap.current.values()) {
-            node.targetX = node.x;
-            node.targetY = node.y;
-          }
-        });
-    } else {
-      simulationRef.current.nodes(nodeList);
-    }
+    const root = d3.hierarchy(rootData);
     
-    const sim = simulationRef.current;
+    // Calculate node size dynamically based on density - increased for more spacing
+    const dx = propsRef.current.density === 'high' ? 45 : 70;
+    const dy = propsRef.current.density === 'high' ? 75 : 110;
     
-    if (mode === 'force') {
-      sim.force("x", null)
-         .force("y", null)
-         .force("link", d3.forceLink(edgeList).id((d: any) => d.id).distance(35))
-         .force("charge", d3.forceManyBody().strength(-70))
-         .force("center", d3.forceCenter(0, 0))
-         .force("collide", d3.forceCollide().radius((d: any) => d.isMainPath ? 24 : 14).iterations(3));
-    } else {
-      sim.force("link", null)
-         .force("charge", null)
-         .force("center", null)
-         .force("x", d3.forceX((d: any) => d.layoutX || 0).strength(0.2))
-         .force("y", d3.forceY((d: any) => d.layoutY || 0).strength(0.2))
-         .force("collide", d3.forceCollide().radius((d: any) => d.isMainPath ? 22 : 12).iterations(2));
-    }
-    
-    // Only slightly reheat if it's cooling down, to avoid "angry bees" jittering
-    if (sim.alpha() < 0.15) {
-      sim.alpha(0.15).restart();
-    }
+    const treeLayout = d3.tree().nodeSize([dx, dy]);
+    treeLayout(root);
+
+    root.each((d: any) => {
+      const n = d.data.node as Node;
+      n.layoutX = d.x;
+      n.layoutY = -d.y; // Invert Y to grow upwards
+      
+      if (n.parent) {
+         n.angle = -Math.PI / 2; // Keep edges somewhat straight for styling
+      } else {
+         n.angle = -Math.PI / 2;
+      }
+    });
   };
+
+
 
   const recalculateLayout = () => {
-    const mode = propsRef.current.layoutMode;
     const nodes = nodesMap.current;
     if (nodes.size === 0) return;
 
-    if (mode === 'organic') {
-      computeOrganicLayout(nodes);
-    } else if (mode === 'radial') {
-      computeRadialLayout(nodes);
-    } else if (mode === 'symmetric') {
-      computeSymmetricLayout(nodes);
-    } else if (mode === 'numerical') {
-      computeNumericalLayout(nodes);
-    }
+    computePalmLayout(nodes);
     
-    // Apply universal anti-collision simulation for all modes
-    updateForceSimulation();
+    stopForceSimulation(); // Make absolutely sure physics is dead
+
+    // Assign targets so the tree gracefully animates into its perfect mathematical shape
+    for (const node of nodes.values()) {
+        node.targetX = node.layoutX || 0;
+        node.targetY = node.layoutY || 0;
+    }
   };
 
   // Recalculate when props change
   useEffect(() => {
     recalculateLayout();
-  }, [props.layoutMode, props.density]);
+  }, [props.density]);
 
   const initSingleNode = () => {
     nodesMap.current.clear();
@@ -508,11 +335,10 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       }
     }
 
-    // Node interpolation (D3 updates x/y directly via simulation)
     for (const node of nodesMap.current.values()) {
-      if (propsRef.current.layoutMode !== 'force' && simulationRef.current) {
+      if (simulationRef.current) {
          // simulation updates x/y towards layoutX/Y
-      } else if (propsRef.current.layoutMode !== 'force') {
+      } else {
          // fallback if no sim
          node.x += (node.targetX - node.x) * 0.12 * (dt / 16.6);
          node.y += (node.targetY - node.y) * 0.12 * (dt / 16.6);
@@ -698,6 +524,104 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       ctx.restore();
     }
 
+    const active = activePathRef.current;
+    if (active && active.nodes.length > 0) {
+      const nodes = active.nodes;
+      
+      const currentIdx = Math.floor(active.progress);
+      
+      // Highlight the path being traveled (from 0 up to current progress)
+      ctx.beginPath();
+      for (let i = 0; i < Math.min(currentIdx, nodes.length - 1); i++) {
+        traceEdge({ source: nodes[i], target: nodes[i + 1] });
+      }
+      ctx.strokeStyle = theme.activePath;
+      ctx.lineWidth = 5 / t.k;
+      ctx.stroke();
+      
+      // Leave brighter marks on the edge of all nodes we've visited so far!
+      for (let i = 0; i <= currentIdx && i < nodes.length; i++) {
+         const n = nodes[i];
+         ctx.beginPath();
+         // Slightly larger radius than the base node to form a glowing ring
+         const r = getNodeRadius(n, false) + 1.5 / t.k; 
+         ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+         ctx.strokeStyle = theme.pulseFill; 
+         ctx.lineWidth = 1.5 / t.k;
+         ctx.stroke();
+      }
+      
+      if (currentIdx < nodes.length) {
+        const currentNode = nodes[currentIdx];
+        
+        // Spark particles wake at the current node (reduced probability and size for less dust)
+        if (!propsRef.current.isPaused && Math.random() < 0.15) {
+          particlesRef.current.push({
+            x: currentNode.x,
+            y: currentNode.y,
+            vx: (Math.random() - 0.5) * 0.8,
+            vy: (Math.random() - 0.5) * 0.8,
+            alpha: 1.0,
+            size: Math.random() * 1.5 + 0.5,
+            color: theme.pulseFill
+          });
+        }
+
+        // Draw traveling comet pulse exactly on the edge of the teleported node
+        ctx.save();
+        ctx.beginPath();
+        const r = getNodeRadius(currentNode, false) + 2.5 / t.k;
+        ctx.arc(currentNode.x, currentNode.y, r, 0, Math.PI * 2);
+        ctx.strokeStyle = theme.pulseFill;
+        ctx.lineWidth = 2.0 / t.k;
+        ctx.shadowColor = theme.pulseShadow;
+        ctx.shadowBlur = 10 / t.k;
+        ctx.stroke();
+        ctx.restore();
+
+        // Center camera to follow teleportation
+        const targetK = 1.45;
+        cameraTargetRef.current = {
+          x: width / 2 - currentNode.x * targetK,
+          y: height * 0.5 - currentNode.y * targetK,
+          k: targetK
+        };
+      }
+
+      if (!propsRef.current.isPaused) {
+        // We use the same base speed but multiplied because discrete looks slower than continuous
+        const baseSpeed = [0.035, 0.015, 0.006, 0.002, 0.0005][propsRef.current.speed - 1] || 0.006;
+        const wasComplete = active.progress >= nodes.length - 1;
+        active.progress += baseSpeed * (dt / 16.6) * 1.8;
+        if (active.progress >= nodes.length - 1) {
+           active.progress = nodes.length - 1;
+           if (!wasComplete && propsRef.current.onPathComplete) {
+               propsRef.current.onPathComplete();
+           }
+        }
+      }
+    }
+
+    // 9. Draw / Update active particles
+    ctx.save();
+    for (let i = particlesRef.current.length - 1; i >= 0; i--) {
+      const p = particlesRef.current[i];
+      p.x += p.vx * (dt / 16.6);
+      p.y += p.vy * (dt / 16.6);
+      p.alpha -= 0.026 * (dt / 16.6);
+      if (p.alpha <= 0) {
+        particlesRef.current.splice(i, 1);
+        continue;
+      }
+      
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = p.alpha;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+
     // 4. Draw SIDE NODES
     for (const node of nodesMap.current.values()) {
       if (!node.isMainPath && isVisible(node.x, node.y)) {
@@ -762,104 +686,6 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
     }
 
     // 8. Draw active descent path & teleport pulse
-    const active = activePathRef.current;
-    if (active && active.nodes.length > 0) {
-      const nodes = active.nodes;
-      
-      const currentIdx = Math.floor(active.progress);
-      
-      // Highlight the path being traveled (from 0 up to current progress)
-      ctx.beginPath();
-      for (let i = 0; i < Math.min(currentIdx, nodes.length - 1); i++) {
-        traceEdge({ source: nodes[i], target: nodes[i + 1] });
-      }
-      ctx.strokeStyle = theme.activePath;
-      ctx.lineWidth = 5 / t.k;
-      ctx.stroke();
-      
-      // Leave brighter marks on the edge of all nodes we've visited so far!
-      for (let i = 0; i <= currentIdx && i < nodes.length; i++) {
-         const n = nodes[i];
-         ctx.beginPath();
-         // Slightly larger radius than the base node to form a glowing ring
-         const r = getNodeRadius(n, false) + 3.5 / t.k; 
-         ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
-         ctx.strokeStyle = theme.pulseFill; 
-         ctx.lineWidth = 3 / t.k;
-         ctx.stroke();
-      }
-      
-      if (currentIdx < nodes.length) {
-        const currentNode = nodes[currentIdx];
-        
-        // Spark particles wake at the current node
-        if (!propsRef.current.isPaused && Math.random() < 0.6) {
-          particlesRef.current.push({
-            x: currentNode.x,
-            y: currentNode.y,
-            vx: (Math.random() - 0.5) * 1.6,
-            vy: (Math.random() - 0.5) * 1.6,
-            alpha: 1.0,
-            size: Math.random() * 2.8 + 1.2,
-            color: theme.pulseFill
-          });
-        }
-
-        // Draw traveling comet pulse exactly on the edge of the teleported node
-        ctx.save();
-        ctx.beginPath();
-        const r = getNodeRadius(currentNode, false) + 5 / t.k;
-        ctx.arc(currentNode.x, currentNode.y, r, 0, Math.PI * 2);
-        ctx.strokeStyle = theme.pulseFill;
-        ctx.lineWidth = 4 / t.k;
-        ctx.shadowColor = theme.pulseShadow;
-        ctx.shadowBlur = 24 / t.k;
-        ctx.stroke();
-        ctx.restore();
-
-        // Center camera to follow teleportation
-        const targetK = 1.45;
-        cameraTargetRef.current = {
-          x: width / 2 - currentNode.x * targetK,
-          y: height * 0.5 - currentNode.y * targetK,
-          k: targetK
-        };
-      }
-
-      if (!propsRef.current.isPaused) {
-        // We use the same base speed but multiplied because discrete looks slower than continuous
-        const baseSpeed = [0.11, 0.055, 0.02, 0.006, 0.0017][propsRef.current.speed - 1] || 0.02;
-        const wasComplete = active.progress >= nodes.length - 1;
-        active.progress += baseSpeed * (dt / 16.6) * 1.8;
-        if (active.progress >= nodes.length - 1) {
-           active.progress = nodes.length - 1;
-           if (!wasComplete && propsRef.current.onPathComplete) {
-               propsRef.current.onPathComplete();
-           }
-        }
-      }
-    }
-
-    // 9. Draw / Update active particles
-    ctx.save();
-    for (let i = particlesRef.current.length - 1; i >= 0; i--) {
-      const p = particlesRef.current[i];
-      p.x += p.vx * (dt / 16.6);
-      p.y += p.vy * (dt / 16.6);
-      p.alpha -= 0.026 * (dt / 16.6);
-      if (p.alpha <= 0) {
-        particlesRef.current.splice(i, 1);
-        continue;
-      }
-      
-      ctx.fillStyle = p.color;
-      ctx.globalAlpha = p.alpha;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.restore();
-
     ctx.restore();
     animationRef.current = requestAnimationFrame(draw);
   };
