@@ -8,9 +8,13 @@ export interface CollatzTreeRef {
   focusOnNode: (id: number) => void;
   recalculateLayout: () => void;
   stopBuilding: () => void;
+  zoomIn: () => void;
+  zoomOut: () => void;
+  resetView: () => void;
+  exportImage: () => string | null;
 }
 
-interface Node {
+interface Node extends d3.SimulationNodeDatum {
   id: number;
   x: number;
   y: number;
@@ -25,11 +29,16 @@ interface Node {
   weight?: number;
 }
 
+interface TreeHierarchyDatum {
+  id: number;
+  node: Node;
+  children: TreeHierarchyDatum[];
+}
+
 interface CollatzTreeProps {
   speed: number;
   isPaused: boolean;
   palette: 'dark' | 'light';
-
   edgeStyle: 'curved' | 'straight';
   density: 'low' | 'medium' | 'high';
   hoveredNodeId: number | null;
@@ -55,6 +64,7 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
   const transformRef = useRef(d3.zoomIdentity);
   const cameraTargetRef = useRef<{x: number, y: number, k: number} | null>(null);
   const animationRef = useRef<number | undefined>(undefined);
+  const zoomBehaviorRef = useRef<d3.ZoomBehavior<HTMLCanvasElement, unknown> | null>(null);
   
   const activeTaskRef = useRef<{ timeoutId?: number, isRunning: boolean }>({ isRunning: false });
   const activePathRef = useRef<{ nodes: Node[], progress: number } | null>(null);
@@ -62,8 +72,9 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
   const [isAnimating, setIsAnimating] = useState(false);
   const lastTimeRef = useRef<number>(0);
 
-  // Hover states
+  // Hover & hold states
   const [hoveredNode, setHoveredNode] = useState<Node | null>(null);
+  const [holdingNodeId, setHoldingNodeId] = useState<number | null>(null);
   const hoveredPathSetRef = useRef<Set<number>>(new Set());
 
   // Particles & background stars
@@ -79,33 +90,33 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
   
   const starsRef = useRef<{ x: number; y: number; size: number; opacity: number }[]>([]);
 
-  // D3 force simulation
-  const simulationRef = useRef<d3.Simulation<any, undefined> | null>(null);
+  // D3 force simulation placeholder (kept for safety)
+  const simulationRef = useRef<d3.Simulation<d3.SimulationNodeDatum, undefined> | null>(null);
 
   // Sync hoveredPathSetRef when hoveredNode changes
+  const onHoverNodeProp = props.onHoverNode;
   useEffect(() => {
     const set = new Set<number>();
     if (hoveredNode) {
-      let curr = hoveredNode;
+      let curr: Node | null = hoveredNode;
       while (curr) {
         set.add(curr.id);
-        const parentId = curr.parent;
-        curr = parentId ? nodesMap.current.get(parentId)! : null as any;
+        const parentId: number | null = curr.parent;
+        curr = parentId !== null ? nodesMap.current.get(parentId) || null : null;
       }
     }
     hoveredPathSetRef.current = set;
-    props.onHoverNode(hoveredNode ? hoveredNode.id : null);
-  }, [hoveredNode]);
+    onHoverNodeProp(hoveredNode ? hoveredNode.id : null);
+  }, [hoveredNode, onHoverNodeProp]);
 
   // Sync external hover state
+  const externalHoveredNodeId = props.hoveredNodeId;
   useEffect(() => {
-    if (props.hoveredNodeId !== undefined) {
-      const node = props.hoveredNodeId ? nodesMap.current.get(props.hoveredNodeId) || null : null;
-      if (node !== hoveredNode) {
-        setHoveredNode(node);
-      }
+    if (externalHoveredNodeId !== undefined) {
+      const node = externalHoveredNodeId ? nodesMap.current.get(externalHoveredNodeId) || null : null;
+      setHoveredNode(prev => (prev?.id !== node?.id ? node : prev));
     }
-  }, [props.hoveredNodeId]);
+  }, [externalHoveredNodeId]);
 
   // Pre-generate background stars for space/constellation effect
   useEffect(() => {
@@ -138,62 +149,54 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       }
     }
 
-    const buildHierarchy = (id: number): any => {
+    const buildHierarchy = (id: number): TreeHierarchyDatum | null => {
       const node = nodes.get(id);
       if (!node) return null;
       const children = childrenOf.get(id) || [];
       return {
         id,
         node,
-        children: children.map(buildHierarchy).filter(Boolean)
+        children: children.map(buildHierarchy).filter((c): c is TreeHierarchyDatum => c !== null)
       };
     };
 
     const rootData = buildHierarchy(1);
     if (!rootData) return;
 
-    const root = d3.hierarchy(rootData);
+    const root = d3.hierarchy<TreeHierarchyDatum>(rootData);
     
     // Calculate node size dynamically based on density - increased for more spacing
     const dx = propsRef.current.density === 'high' ? 45 : 70;
     const dy = propsRef.current.density === 'high' ? 75 : 110;
     
-    const treeLayout = d3.tree().nodeSize([dx, dy]);
+    const treeLayout = d3.tree<TreeHierarchyDatum>().nodeSize([dx, dy]);
     treeLayout(root);
 
-    root.each((d: any) => {
-      const n = d.data.node as Node;
-      n.layoutX = d.x;
-      n.layoutY = -d.y; // Invert Y to grow upwards
-      
-      if (n.parent) {
-         n.angle = -Math.PI / 2; // Keep edges somewhat straight for styling
-      } else {
-         n.angle = -Math.PI / 2;
-      }
+    root.each((d) => {
+      const n = d.data.node;
+      n.layoutX = d.x ?? 0;
+      n.layoutY = -(d.y ?? 0); // Invert Y to grow upwards
+      n.angle = -Math.PI / 2;
     });
   };
-
-
 
   const recalculateLayout = () => {
     const nodes = nodesMap.current;
     if (nodes.size === 0) return;
 
     computePalmLayout(nodes);
-    
-    stopForceSimulation(); // Make absolutely sure physics is dead
+    stopForceSimulation();
 
-    // Assign targets so the tree gracefully animates into its perfect mathematical shape
     for (const node of nodes.values()) {
-        node.targetX = node.layoutX || 0;
-        node.targetY = node.layoutY || 0;
+      node.targetX = node.layoutX || 0;
+      node.targetY = node.layoutY || 0;
     }
   };
 
-  // Recalculate when props change
+  // Recalculate when density prop changes
   useEffect(() => {
     recalculateLayout();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.density]);
 
   const initSingleNode = () => {
@@ -242,8 +245,6 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
   };
 
   const addNode = (val: number, parent: Node, isMainPath: boolean): Node => {
-    // We spawn initially at parent x,y with a jitter, then let layout recalculation place them
-    // This larger jitter (8.0 instead of 1.0) prevents d3 force simulation from exploding due to perfectly overlapping nodes
     const jitterX = (Math.random() - 0.5) * 8.0;
     const jitterY = (Math.random() - 0.5) * 8.0;
     const node: Node = {
@@ -289,8 +290,6 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
     return node;
   };
 
-
-
   const draw = (time: number) => {
     const dt = lastTimeRef.current ? (time - lastTimeRef.current) : 16.6;
     lastTimeRef.current = time;
@@ -314,16 +313,16 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       
       transformRef.current = d3.zoomIdentity.translate(newX, newY).scale(newK);
       
-      const selection = d3.select(canvas);
-      if ((selection.node() as any).__zoom) {
-         (selection.node() as any).__zoom = transformRef.current;
+      const canvasNode = canvas as unknown as { __zoom?: d3.ZoomTransform };
+      if (canvasNode.__zoom) {
+        canvasNode.__zoom = transformRef.current;
       }
     }
 
-    // Emergency physics check inside draw loop
+    // Physics stability check
     if (simulationRef.current) {
       let unstable = false;
-      for (const node of nodesMap.current.values() as any) {
+      for (const node of nodesMap.current.values()) {
         if (node.vx && node.vy && (node.vx * node.vx + node.vy * node.vy > 2500)) {
           unstable = true;
           break;
@@ -336,12 +335,9 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
     }
 
     for (const node of nodesMap.current.values()) {
-      if (simulationRef.current) {
-         // simulation updates x/y towards layoutX/Y
-      } else {
-         // fallback if no sim
-         node.x += (node.targetX - node.x) * 0.12 * (dt / 16.6);
-         node.y += (node.targetY - node.y) * 0.12 * (dt / 16.6);
+      if (!simulationRef.current) {
+        node.x += (node.targetX - node.x) * 0.12 * (dt / 16.6);
+        node.y += (node.targetY - node.y) * 0.12 * (dt / 16.6);
       }
     }
 
@@ -356,7 +352,6 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
     const maxY = (height - t.y) / t.k + 100;
     const isVisible = (x: number, y: number) => x >= minX && x <= maxX && y >= minY && y <= maxY;
 
-    // Render background stars (parallax-like translation)
     ctx.translate(t.x * 0.2, t.y * 0.2);
     ctx.scale(t.k, t.k);
     for (const star of starsRef.current) {
@@ -373,12 +368,9 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
     ctx.translate(t.x, t.y);
     ctx.scale(t.k, t.k);
 
-    // Removed coordinate grid to keep the canvas clean and avoid confusion with unconnected branches
-
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     
-    // Dynamic color and styling helpers based on physics & math properties
     const getThemeColors = () => {
       return propsRef.current.palette === 'light' ? {
         pulseFill: '#0064c8',
@@ -387,57 +379,48 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       } : {
         pulseFill: '#ffffff',
         pulseShadow: '#00ffaa',
-        activePath: 'rgba(0, 255, 170, 0.65)'
+        activePath: 'rgba(0, 255, 170, 0.7)'
       };
     };
     const theme = getThemeColors();
 
     const getNodeColor = (node: Node) => {
-        // Create a real cascading rainbow
-        // Hue circles the full 360 degrees as depth increases
-        const baseHue = (node.depth * 15) % 360;
-        // Shift odd nodes slightly so branches diverge in color
-        const hue = (baseHue + (node.id % 2 === 0 ? 0 : 35)) % 360;
-        
-        // Gentler depth fade so clusters remain bright
-        const depthRatio = Math.min(1, Math.max(0, 1 - node.depth / 120));
-        
-        if (propsRef.current.palette === 'dark') {
-            if (node.isMainPath) return '#ffffff';
-            // Boost base luminosity massively (60% base)
-            const lum = 60 + 25 * depthRatio;
-            return `hsl(${hue}, 100%, ${lum}%)`; // 100% saturation for full rainbow pop
-        } else {
-            if (node.isMainPath) return '#000000';
-            const lum = 50 - 20 * depthRatio;
-            return `hsl(${hue}, 95%, ${lum}%)`;
-        }
+      const baseHue = (node.depth * 15) % 360;
+      const hue = (baseHue + (node.id % 2 === 0 ? 0 : 35)) % 360;
+      const depthRatio = Math.min(1, Math.max(0, 1 - node.depth / 120));
+      
+      if (propsRef.current.palette === 'dark') {
+        if (node.isMainPath) return '#ffffff';
+        const lum = 60 + 25 * depthRatio;
+        return `hsl(${hue}, 100%, ${lum}%)`;
+      } else {
+        if (node.isMainPath) return '#000000';
+        const lum = 50 - 20 * depthRatio;
+        return `hsl(${hue}, 95%, ${lum}%)`;
+      }
     };
 
     const getEdgeColor = (edge: {source: Node, target: Node, isMain?: boolean}) => {
-        if (edge.isMain) return propsRef.current.palette === 'dark' ? 'rgba(0, 240, 255, 0.95)' : 'rgba(0, 80, 220, 0.85)';
-        const c = getNodeColor(edge.target);
-        // Boost side edge alpha to 0.55
-        return c.replace(')', ', 0.55)').replace('hsl', 'hsla');
+      if (edge.isMain) return propsRef.current.palette === 'dark' ? 'rgba(0, 240, 255, 0.95)' : 'rgba(0, 80, 220, 0.85)';
+      const c = getNodeColor(edge.target);
+      return c.replace(')', ', 0.55)').replace('hsl', 'hsla');
     };
 
     const getNodeRadius = (node: Node, isHovered: boolean) => {
-        const baseR = 5.0 + Math.log10(node.id) * 3.5 + Math.log10(node.weight || 1) * 2.0;
-        const size = node.isMainPath ? baseR * 1.3 : baseR;
-        return isHovered ? size * 1.4 : size;
+      const baseR = 5.0 + Math.log10(node.id) * 3.5 + Math.log10(node.weight || 1) * 2.0;
+      const size = node.isMainPath ? baseR * 1.3 : baseR;
+      return isHovered ? size * 1.4 : size;
     };
 
     const getEdgeWidth = (edge: {source: Node, target: Node, isMain?: boolean}) => {
-        const w = 0.5 + Math.log10(edge.target.weight || 1) * 1.5;
-        return edge.isMain ? w * 2.5 : w;
+      const w = 0.5 + Math.log10(edge.target.weight || 1) * 1.5;
+      return edge.isMain ? w * 2.5 : w;
     };
 
     const getDepthAlpha = (node: Node) => {
-        // High base alpha so side clusters don't disappear
-        return Math.max(0.65, 1 - (node.depth / 100));
+      return Math.max(0.65, 1 - (node.depth / 100));
     };
 
-    // Helper: Draw single edge path (straight or curved)
     const traceEdge = (edge: {source: Node, target: Node, isMain?: boolean}) => {
       const x1 = edge.source.x;
       const y1 = edge.source.y;
@@ -451,14 +434,12 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
         const dy = y2 - y1;
         const dist = Math.sqrt(dx * dx + dy * dy);
         
-        // Bend severity proportional to the math leap!
-        // Reduced severity for a more elegant, taut look without excessive concavity
         const isEvenStep = edge.target.id === edge.source.id * 2;
         const severity = isEvenStep ? 0.02 : 0.12;
         const offset = dist * severity * (edge.target.id % 2 === 0 ? 1 : -1);
-        const len = Math.sqrt(dx * dx + dy * dy);
-        const nx = -dy / (len || 1);
-        const ny = dx / (len || 1);
+        const len = Math.sqrt(dx * dx + dy * dy) || 1;
+        const nx = -dy / len;
+        const ny = dx / len;
         const cx = mx + nx * offset;
         const cy = my + ny * offset;
 
@@ -471,7 +452,6 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
     };
 
     ctx.save();
-    // Additive blending for that glorious cosmic nebula look where dense branches overlap
     if (propsRef.current.palette === 'dark') {
       ctx.globalCompositeOperation = 'lighter';
     } else {
@@ -504,7 +484,7 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       }
     }
     
-    ctx.restore(); // Restore default composite mode before drawing solid nodes
+    ctx.restore();
 
     // 3. Draw HOVERED EDGES
     if (hoveredNode) {
@@ -524,85 +504,141 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       ctx.restore();
     }
 
+    // 4. Smooth continuous comet descent animation
     const active = activePathRef.current;
     if (active && active.nodes.length > 0) {
       const nodes = active.nodes;
-      
-      const currentIdx = Math.floor(active.progress);
-      
-      // Highlight the path being traveled (from 0 up to current progress)
+      const maxIdx = nodes.length - 1;
+      const progress = Math.min(active.progress, maxIdx);
+      const currentIdx = Math.floor(progress);
+      const fraction = progress - currentIdx;
+
+      // Draw path traversed so far
       ctx.beginPath();
-      for (let i = 0; i < Math.min(currentIdx, nodes.length - 1); i++) {
+      for (let i = 0; i < currentIdx; i++) {
         traceEdge({ source: nodes[i], target: nodes[i + 1] });
       }
       ctx.strokeStyle = theme.activePath;
       ctx.lineWidth = 5 / t.k;
       ctx.stroke();
-      
-      // Leave brighter marks on the edge of all nodes we've visited so far!
+
+      // Ring visited nodes
       for (let i = 0; i <= currentIdx && i < nodes.length; i++) {
-         const n = nodes[i];
-         ctx.beginPath();
-         // Slightly larger radius than the base node to form a glowing ring
-         const r = getNodeRadius(n, false) + 1.5 / t.k; 
-         ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
-         ctx.strokeStyle = theme.pulseFill; 
-         ctx.lineWidth = 1.5 / t.k;
-         ctx.stroke();
-      }
-      
-      if (currentIdx < nodes.length) {
-        const currentNode = nodes[currentIdx];
-        
-        // Spark particles wake at the current node (reduced probability and size for less dust)
-        if (!propsRef.current.isPaused && Math.random() < 0.15) {
-          particlesRef.current.push({
-            x: currentNode.x,
-            y: currentNode.y,
-            vx: (Math.random() - 0.5) * 0.8,
-            vy: (Math.random() - 0.5) * 0.8,
-            alpha: 1.0,
-            size: Math.random() * 1.5 + 0.5,
-            color: theme.pulseFill
-          });
-        }
-
-        // Draw traveling comet pulse exactly on the edge of the teleported node
-        ctx.save();
+        const n = nodes[i];
         ctx.beginPath();
-        const r = getNodeRadius(currentNode, false) + 2.5 / t.k;
-        ctx.arc(currentNode.x, currentNode.y, r, 0, Math.PI * 2);
+        const r = getNodeRadius(n, false) + 1.5 / t.k;
+        ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
         ctx.strokeStyle = theme.pulseFill;
-        ctx.lineWidth = 2.0 / t.k;
-        ctx.shadowColor = theme.pulseShadow;
-        ctx.shadowBlur = 10 / t.k;
+        ctx.lineWidth = 1.5 / t.k;
         ctx.stroke();
-        ctx.restore();
-
-        // Center camera to follow teleportation
-        const targetK = 1.45;
-        cameraTargetRef.current = {
-          x: width / 2 - currentNode.x * targetK,
-          y: height * 0.5 - currentNode.y * targetK,
-          k: targetK
-        };
       }
+
+      // Compute smooth comet coordinates along the active branch
+      let lightX = nodes[currentIdx].x;
+      let lightY = nodes[currentIdx].y;
+
+      if (currentIdx < maxIdx) {
+        const p0 = nodes[currentIdx];
+        const p1 = nodes[currentIdx + 1];
+
+        if (propsRef.current.edgeStyle === 'curved') {
+          const mx = (p0.x + p1.x) / 2;
+          const my = (p0.y + p1.y) / 2;
+          const dx = p1.x - p0.x;
+          const dy = p1.y - p0.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          const isEvenStep = p1.id === p0.id * 2;
+          const severity = isEvenStep ? 0.02 : 0.12;
+          const offset = dist * severity * (p1.id % 2 === 0 ? 1 : -1);
+          const len = Math.sqrt(dx * dx + dy * dy) || 1;
+          const nx = -dy / len;
+          const ny = dx / len;
+          const cx = mx + nx * offset;
+          const cy = my + ny * offset;
+
+          const u = fraction;
+          const invU = 1 - u;
+          lightX = invU * invU * p0.x + 2 * invU * u * cx + u * u * p1.x;
+          lightY = invU * invU * p0.y + 2 * invU * u * cy + u * u * p1.y;
+
+          ctx.beginPath();
+          ctx.moveTo(p0.x, p0.y);
+          ctx.quadraticCurveTo(
+            p0.x + u * (cx - p0.x),
+            p0.y + u * (cy - p0.y),
+            lightX,
+            lightY
+          );
+          ctx.strokeStyle = theme.activePath;
+          ctx.lineWidth = 5 / t.k;
+          ctx.stroke();
+        } else {
+          lightX = p0.x + fraction * (p1.x - p0.x);
+          lightY = p0.y + fraction * (p1.y - p0.y);
+
+          ctx.beginPath();
+          ctx.moveTo(p0.x, p0.y);
+          ctx.lineTo(lightX, lightY);
+          ctx.strokeStyle = theme.activePath;
+          ctx.lineWidth = 5 / t.k;
+          ctx.stroke();
+        }
+      }
+
+      // Wake particles behind comet head
+      if (!propsRef.current.isPaused && Math.random() < 0.25) {
+        particlesRef.current.push({
+          x: lightX,
+          y: lightY,
+          vx: (Math.random() - 0.5) * 0.8,
+          vy: (Math.random() - 0.5) * 0.8,
+          alpha: 1.0,
+          size: Math.random() * 1.8 + 0.6,
+          color: theme.pulseShadow
+        });
+      }
+
+      // Draw glowing traveling comet
+      ctx.save();
+      ctx.beginPath();
+      const cometR = 5 / t.k;
+      ctx.arc(lightX, lightY, cometR, 0, Math.PI * 2);
+      ctx.fillStyle = theme.pulseFill;
+      ctx.shadowColor = theme.pulseShadow;
+      ctx.shadowBlur = 12 / t.k;
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(lightX, lightY, cometR + 2.5 / t.k, 0, Math.PI * 2);
+      ctx.strokeStyle = theme.pulseShadow;
+      ctx.lineWidth = 1.5 / t.k;
+      ctx.stroke();
+      ctx.restore();
+
+      // Camera smoothly follows the comet head
+      const targetK = 1.45;
+      cameraTargetRef.current = {
+        x: width / 2 - lightX * targetK,
+        y: height * 0.5 - lightY * targetK,
+        k: targetK
+      };
 
       if (!propsRef.current.isPaused) {
-        // We use the same base speed but multiplied because discrete looks slower than continuous
-        const baseSpeed = [0.035, 0.015, 0.006, 0.002, 0.0005][propsRef.current.speed - 1] || 0.006;
-        const wasComplete = active.progress >= nodes.length - 1;
-        active.progress += baseSpeed * (dt / 16.6) * 1.8;
-        if (active.progress >= nodes.length - 1) {
-           active.progress = nodes.length - 1;
-           if (!wasComplete && propsRef.current.onPathComplete) {
-               propsRef.current.onPathComplete();
-           }
+        // Natural speed progression: 1 = slow, 5 = fast
+        const speedMultipliers = [0.008, 0.016, 0.032, 0.065, 0.12];
+        const baseSpeed = speedMultipliers[propsRef.current.speed - 1] || 0.032;
+        const wasComplete = active.progress >= maxIdx;
+        active.progress += baseSpeed * (dt / 16.6) * 1.5;
+        if (active.progress >= maxIdx) {
+          active.progress = maxIdx;
+          if (!wasComplete && propsRef.current.onPathComplete) {
+            propsRef.current.onPathComplete();
+          }
         }
       }
     }
 
-    // 9. Draw / Update active particles
+    // 5. Draw active particles
     ctx.save();
     for (let i = particlesRef.current.length - 1; i >= 0; i--) {
       const p = particlesRef.current[i];
@@ -622,7 +658,7 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
     }
     ctx.restore();
 
-    // 4. Draw SIDE NODES
+    // 6. Draw SIDE NODES
     for (const node of nodesMap.current.values()) {
       if (!node.isMainPath && isVisible(node.x, node.y)) {
         ctx.beginPath();
@@ -641,7 +677,7 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       }
     }
 
-    // 5. Draw SIDE NODE TEXT (only when zoomed in)
+    // 7. Draw SIDE NODE TEXT (when zoomed in)
     if (t.k > 0.8) {
       ctx.font = `600 ${6.5}px 'Outfit', sans-serif`;
       ctx.textAlign = 'center';
@@ -655,7 +691,7 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       }
     }
 
-    // 6. Draw MAIN NODES
+    // 8. Draw MAIN NODES
     ctx.globalAlpha = 1.0;
     for (const node of nodesMap.current.values()) {
       if (node.isMainPath && isVisible(node.x, node.y)) {
@@ -674,7 +710,7 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       }
     }
 
-    // 7. Draw MAIN NODE TEXT
+    // 9. Draw MAIN NODE TEXT
     ctx.font = `700 ${9}px 'Outfit', sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -685,7 +721,6 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       }
     }
 
-    // 8. Draw active descent path & teleport pulse
     ctx.restore();
     animationRef.current = requestAnimationFrame(draw);
   };
@@ -697,42 +732,36 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       }
       activeTaskRef.current.isRunning = true;
       setIsAnimating(true);
-      
       initSingleNode();
       
-      // Let the browser paint the cleared screen before we freeze it with heavy computation
       activeTaskRef.current.timeoutId = window.setTimeout(() => {
         let current = seed;
-      const pathSeq: number[] = [];
-      while (current > 1) {
-        pathSeq.push(current);
-        current = current % 2 === 0 ? current / 2 : current * 3 + 1;
-      }
-      pathSeq.push(1);
-      pathSeq.reverse(); // [1, ..., seed]
+        const pathSeq: number[] = [];
+        while (current > 1) {
+          pathSeq.push(current);
+          current = current % 2 === 0 ? current / 2 : current * 3 + 1;
+        }
+        pathSeq.push(1);
+        pathSeq.reverse(); // [1, ..., seed]
 
-      let branchTips: Node[] = [];
+        let branchTips: Node[] = [];
 
-      const svg = d3.select(canvasRef.current);
-      const zoom = d3.zoom<HTMLCanvasElement, unknown>()
-        .scaleExtent([0.05, 15])
-        .on('zoom', (e) => {
-          transformRef.current = e.transform;
-        });
-      svg.call(zoom as any);
+        const canvas = canvasRef.current;
+        if (canvas && zoomBehaviorRef.current) {
+          d3.select(canvas).call(zoomBehaviorRef.current);
+        }
 
-      // Set side branch growth limit based on Density
-      const densVal = propsRef.current.density;
-      const targetNodes = densVal === 'low' 
-        ? Math.min(300, pathSeq.length * 6)
-        : densVal === 'medium' 
-          ? Math.min(1000, pathSeq.length * 20)
-          : Math.min(2000, pathSeq.length * 40);
+        const densVal = propsRef.current.density;
+        const targetNodes = densVal === 'low' 
+          ? Math.min(300, pathSeq.length * 6)
+          : densVal === 'medium' 
+            ? Math.min(1000, pathSeq.length * 20)
+            : Math.min(2000, pathSeq.length * 40);
 
-      const branchProb = densVal === 'low' ? 0.12 : densVal === 'medium' ? 0.28 : 0.45;
+        const branchProb = densVal === 'low' ? 0.12 : densVal === 'medium' ? 0.28 : 0.45;
 
-      // 1. Synchronously build main path
-      for (let step = 1; step < pathSeq.length; step++) {
+        // 1. Synchronously build main path
+        for (let step = 1; step < pathSeq.length; step++) {
           const val = pathSeq[step];
           const prevVal = pathSeq[step - 1];
           const parent = nodesMap.current.get(prevVal)!;
@@ -744,84 +773,71 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
           
           if (!nodesMap.current.has(c1) && Math.random() < branchProb) branchTips.push(node);
           if (node.id > 4 && (node.id - 1) % 3 === 0 && !nodesMap.current.has(c2)) branchTips.push(node);
-      }
+        }
 
-      // 2. Synchronously sprout side branches
-      let panic = 0;
-      while (branchTips.length > 0 && nodesMap.current.size < targetNodes && panic < 250) {
+        // 2. Synchronously sprout side branches
+        let panic = 0;
+        while (branchTips.length > 0 && nodesMap.current.size < targetNodes && panic < 250) {
           let newTips: Node[] = [];
           for (const tip of branchTips) {
-              if (nodesMap.current.size > targetNodes) break;
-              
-              const t1 = tip.id * 2;
-              const t2 = (tip.id - 1) / 3;
-              
-              let pushed = false;
-              if (!nodesMap.current.has(t1)) {
-                  if (Math.random() < 0.78) {
-                      newTips.push(addNode(t1, tip, false));
-                      pushed = true;
-                  } else {
-                      newTips.push(tip);
-                      pushed = true;
-                  }
+            if (nodesMap.current.size > targetNodes) break;
+            
+            const t1 = tip.id * 2;
+            const t2 = (tip.id - 1) / 3;
+            
+            let pushed = false;
+            if (!nodesMap.current.has(t1)) {
+              if (Math.random() < 0.78) {
+                newTips.push(addNode(t1, tip, false));
+                pushed = true;
+              } else {
+                newTips.push(tip);
+                pushed = true;
               }
-              if (tip.id > 4 && (tip.id - 1) % 3 === 0) {
-                  if (t2 % 2 !== 0 && t2 > 1 && !nodesMap.current.has(t2)) {
-                      if (Math.random() < 0.88) {
-                          newTips.push(addNode(t2, tip, false));
-                      } else if (!pushed) {
-                          newTips.push(tip);
-                      }
-                  }
+            }
+            if (tip.id > 4 && (tip.id - 1) % 3 === 0) {
+              if (t2 % 2 !== 0 && t2 > 1 && !nodesMap.current.has(t2)) {
+                if (Math.random() < 0.88) {
+                  newTips.push(addNode(t2, tip, false));
+                } else if (!pushed) {
+                  newTips.push(tip);
+                }
               }
+            }
           }
           if (newTips.length > 150) {
-              newTips = newTips.sort(() => Math.random() - 0.5).slice(0, 100);
+            newTips = newTips.sort(() => Math.random() - 0.5).slice(0, 100);
           }
           branchTips = newTips;
           panic++;
-      }
+        }
 
-      // Calculate subtree weights for thickness/sizing
-      const nodesArray = Array.from(nodesMap.current.values()).sort((a, b) => b.depth - a.depth);
-      for (const node of nodesArray) {
-        node.weight = 1;
-      }
-      for (const node of nodesArray) {
-        if (node.parent !== null) {
-          const p = nodesMap.current.get(node.parent);
-          if (p) {
-            p.weight = (p.weight || 0) + (node.weight || 1);
+        // Calculate subtree weights
+        const nodesArray = Array.from(nodesMap.current.values()).sort((a, b) => b.depth - a.depth);
+        for (const node of nodesArray) {
+          node.weight = 1;
+        }
+        for (const node of nodesArray) {
+          if (node.parent !== null) {
+            const p = nodesMap.current.get(node.parent);
+            if (p) {
+              p.weight = (p.weight || 0) + (node.weight || 1);
+            }
           }
         }
-      }
 
-      // 3. Pre-calculate layout & instantiate forces
-      recalculateLayout();
+        recalculateLayout();
 
-      // 4. Fast-forward the physics simulation so it instantly settles! (NO MORE ANGRY BEES)
-      if (simulationRef.current) {
-          simulationRef.current.tick(120);
-          
-          // Force apply layout targets instantly to skip transition
-          for (const node of nodesMap.current.values()) {
-              node.targetX = node.x;
-              node.targetY = node.y;
-          }
-      }
-
-      // Center Camera on seed
-      const canvas = canvasRef.current;
-      if (canvas) {
+        // Center camera on seed
+        if (canvas) {
           const seedNode = nodesMap.current.get(seed);
           const k = 1.15;
           cameraTargetRef.current = {
-             x: canvas.width / 2 - (seedNode ? seedNode.x * k : 0),
-             y: canvas.height * 0.4 - (seedNode ? seedNode.y * k : 0),
-             k: k
+            x: canvas.width / 2 - (seedNode ? seedNode.x * k : 0),
+            y: canvas.height * 0.4 - (seedNode ? seedNode.y * k : 0),
+            k: k
           };
-      }
+        }
 
         activeTaskRef.current.isRunning = false;
         setIsAnimating(false);
@@ -868,6 +884,29 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       }
       activeTaskRef.current.isRunning = false;
       setIsAnimating(false);
+    },
+    zoomIn: () => {
+      if (canvasRef.current && zoomBehaviorRef.current) {
+        d3.select(canvasRef.current).transition().duration(250).call(zoomBehaviorRef.current.scaleBy, 1.4);
+      }
+    },
+    zoomOut: () => {
+      if (canvasRef.current && zoomBehaviorRef.current) {
+        d3.select(canvasRef.current).transition().duration(250).call(zoomBehaviorRef.current.scaleBy, 1 / 1.4);
+      }
+    },
+    resetView: () => {
+      if (canvasRef.current && zoomBehaviorRef.current) {
+        const canvas = canvasRef.current;
+        const initialTransform = d3.zoomIdentity.translate(canvas.width / 2, canvas.height * 0.85).scale(1.0);
+        d3.select(canvas).transition().duration(350).call(zoomBehaviorRef.current.transform, initialTransform);
+      }
+    },
+    exportImage: () => {
+      if (canvasRef.current) {
+        return canvasRef.current.toDataURL('image/png');
+      }
+      return null;
     }
   }));
 
@@ -888,23 +927,24 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
 
     const zoom = d3.zoom<HTMLCanvasElement, unknown>()
       .scaleExtent([0.05, 15])
-      .on('zoom', (e) => {
+      .on('zoom', (e: d3.D3ZoomEvent<HTMLCanvasElement, unknown>) => {
         transformRef.current = e.transform;
       });
+    zoomBehaviorRef.current = zoom;
 
-    d3.select(canvas).call(zoom as any).on("dblclick.zoom", null);
+    d3.select(canvas).call(zoom).on("dblclick.zoom", null);
     
     const initialTransform = d3.zoomIdentity.translate(canvas.width / 2, canvas.height * 0.85);
     transformRef.current = initialTransform;
-    (canvas as any).__zoom = initialTransform;
+    (canvas as unknown as { __zoom?: d3.ZoomTransform }).__zoom = initialTransform;
 
     cameraTargetRef.current = {
-       x: canvas.width / 2,
-       y: canvas.height * 0.45,
-       k: 1.1
+      x: canvas.width / 2,
+      y: canvas.height * 0.45,
+      k: 1.1
     };
 
-    // Node hovering & selection on canvas click
+    // Node hovering & selection on canvas click / hold
     let startX = 0;
     let startY = 0;
     let longPressTimer: ReturnType<typeof setTimeout> | null = null;
@@ -914,26 +954,19 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
         clearTimeout(longPressTimer);
         longPressTimer = null;
       }
+      setHoldingNodeId(null);
     };
 
-    const handleMouseMove = (e: MouseEvent) => {
+    const getNodeAtScreenPos = (clientX: number, clientY: number, maxDistance = 22): Node | null => {
       const canvasNode = canvasRef.current;
-      if (!canvasNode) return;
+      if (!canvasNode) return null;
       const rect = canvasNode.getBoundingClientRect();
-      const mouseX = e.clientX - rect.left;
-      const mouseY = e.clientY - rect.top;
-      
-      const dx = e.clientX - startX;
-      const dy = e.clientY - startY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist > 10) {
-        clearLongPress();
-      }
-      
+      const mouseX = clientX - rect.left;
+      const mouseY = clientY - rect.top;
       const [tx, ty] = transformRef.current.invert([mouseX, mouseY]);
       
       let closestNode: Node | null = null;
-      let minDistance = 22; // pixels hover threshold
+      let minDistance = maxDistance;
       
       for (const node of nodesMap.current.values()) {
         const dxNode = node.x - tx;
@@ -944,40 +977,31 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
           closestNode = node;
         }
       }
-      
-      setHoveredNode(prev => prev?.id !== closestNode?.id ? closestNode : prev);
+      return closestNode;
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      if (Math.sqrt(dx * dx + dy * dy) > 10) {
+        clearLongPress();
+      }
+      const closest = getNodeAtScreenPos(e.clientX, e.clientY);
+      setHoveredNode(prev => (prev?.id !== closest?.id ? closest : prev));
     };
 
     const handleMouseDown = (e: MouseEvent) => {
       startX = e.clientX;
       startY = e.clientY;
-      
-      const canvasNode = canvasRef.current;
-      if (!canvasNode) return;
-      const rect = canvasNode.getBoundingClientRect();
-      const mouseX = e.clientX - rect.left;
-      const mouseY = e.clientY - rect.top;
-      const [tx, ty] = transformRef.current.invert([mouseX, mouseY]);
-      
-      let closestNode: Node | null = null;
-      let minDistance = 22;
-      
-      for (const node of nodesMap.current.values()) {
-        const dxNode = node.x - tx;
-        const dyNode = node.y - ty;
-        const distToNode = Math.sqrt(dxNode * dxNode + dyNode * dyNode);
-        if (distToNode < minDistance) {
-          minDistance = distToNode;
-          closestNode = node;
-        }
-      }
-      
-      if (closestNode) {
+      const closest = getNodeAtScreenPos(e.clientX, e.clientY);
+      if (closest) {
+        setHoldingNodeId(closest.id);
         longPressTimer = setTimeout(() => {
           if (propsRef.current.onRequestSeed) {
-            propsRef.current.onRequestSeed(closestNode!.id);
+            propsRef.current.onRequestSeed(closest.id);
           }
-        }, 3000);
+          setHoldingNodeId(null);
+        }, 2000); // 2000ms hold per user feedback
       }
     };
 
@@ -989,26 +1013,73 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       clearLongPress();
     };
 
+    // Touch event listeners for mobile devices
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        startX = touch.clientX;
+        startY = touch.clientY;
+        const closest = getNodeAtScreenPos(touch.clientX, touch.clientY, 30);
+        if (closest) {
+          setHoveredNode(closest);
+          setHoldingNodeId(closest.id);
+          longPressTimer = setTimeout(() => {
+            if (propsRef.current.onRequestSeed) {
+              propsRef.current.onRequestSeed(closest.id);
+            }
+            setHoldingNodeId(null);
+          }, 2000);
+        }
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        const dx = touch.clientX - startX;
+        const dy = touch.clientY - startY;
+        if (Math.sqrt(dx * dx + dy * dy) > 10) {
+          clearLongPress();
+        }
+      }
+    };
+
+    const handleTouchEnd = () => {
+      clearLongPress();
+    };
+
     canvas.addEventListener('mousemove', handleMouseMove);
     canvas.addEventListener('mousedown', handleMouseDown);
     canvas.addEventListener('mouseup', handleMouseUp);
     canvas.addEventListener('mouseleave', handleMouseLeave);
 
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: true });
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: true });
+    canvas.addEventListener('touchend', handleTouchEnd);
+    canvas.addEventListener('touchcancel', handleTouchEnd);
+
     animationRef.current = requestAnimationFrame(draw);
 
+    const activeTask = activeTaskRef.current;
     return () => {
       window.removeEventListener('resize', resize);
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
-      if (activeTaskRef.current.timeoutId) window.clearTimeout(activeTaskRef.current.timeoutId);
+      if (activeTask.timeoutId) window.clearTimeout(activeTask.timeoutId);
       
       clearLongPress();
       canvas.removeEventListener('mousemove', handleMouseMove);
       canvas.removeEventListener('mousedown', handleMouseDown);
       canvas.removeEventListener('mouseup', handleMouseUp);
       canvas.removeEventListener('mouseleave', handleMouseLeave);
+
+      canvas.removeEventListener('touchstart', handleTouchStart);
+      canvas.removeEventListener('touchmove', handleTouchMove);
+      canvas.removeEventListener('touchend', handleTouchEnd);
+      canvas.removeEventListener('touchcancel', handleTouchEnd);
       
       stopForceSimulation();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Compute Tooltip Overlay Placement
@@ -1028,7 +1099,6 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
 
   return (
     <div ref={containerRef} className="canvas-container" style={{ position: 'relative' }}>
-      {/* Visually hidden container for screen reader and keyboard accessibility */}
       <div 
         ref={a11yContainerRef} 
         className="sr-only" 
@@ -1043,7 +1113,6 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
         </div>
       )}
 
-      {/* glassmorphic interactive tooltip */}
       {hoveredNode && (
         <div className="canvas-tooltip" style={tooltipStyle}>
           <div className="tooltip-header">
@@ -1072,7 +1141,14 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
             )}
           </div>
           <div className="tooltip-footer">
-            hold for 3s to use as seed
+            {holdingNodeId === hoveredNode.id ? (
+              <div className="hold-indicator">
+                <div className="hold-bar-fill" />
+                <span>planting seed...</span>
+              </div>
+            ) : (
+              <span>hold for 2s to plant as seed</span>
+            )}
           </div>
         </div>
       )}
