@@ -1,7 +1,10 @@
 .app-container {
-  position: relative;
+  position: fixed;
+  inset: 0;
   width: 100vw;
+  width: 100dvw;
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
@@ -93,14 +96,25 @@
 @media (max-width: 768px) {
   .title-overlay {
     top: 12px;
-    right: 14px;
+    right: 12px;
+    max-width: calc(100vw - 140px);
   }
   .title-overlay h1 {
-    font-size: 1.25rem;
+    font-size: 1.15rem;
     letter-spacing: 1px;
   }
   .subtitle {
-    display: none;
+    margin-top: 6px;
+    font-size: 0.72rem;
+    line-height: 1.35;
+  }
+  .bottom-text {
+    font-size: 0.68rem;
+    margin-top: 4px;
+  }
+  .wiki-link {
+    font-size: 0.68rem;
+    margin-top: 2px;
   }
 }
 
@@ -197,7 +211,7 @@
 
 @media (max-width: 768px) {
   .bottom-dock {
-    bottom: 10px;
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
     width: calc(100vw - 20px);
     gap: 6px;
   }
@@ -215,27 +229,31 @@
   .ui-overlay {
     width: 100%;
     flex-direction: row;
-    gap: 8px;
-    padding: 6px 10px;
+    gap: 6px;
+    padding: 6px 8px;
     border-radius: 24px;
     align-items: center;
     box-sizing: border-box;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
   }
+  .input-wrap {
+    flex: 1;
+    min-width: 72px;
+  }
   .seed-input {
     width: 100%;
-    padding: 8px 26px 8px 12px;
-    font-size: 0.95rem;
+    padding: 8px 24px 8px 10px;
+    font-size: 0.9rem;
     border-radius: 18px;
     box-sizing: border-box;
   }
   .input-clear-btn {
-    right: 8px;
+    right: 6px;
     font-size: 1rem;
   }
   .action-btn {
-    padding: 8px 14px;
-    font-size: 0.85rem;
+    padding: 8px 11px;
+    font-size: 0.8rem;
     white-space: nowrap;
     flex-shrink: 0;
     border-radius: 18px;
@@ -249,13 +267,10 @@
     top: 12px;
     left: 12px;
   }
-  .floating-pause-btn,
-  .canvas-hud {
-    display: none !important;
-  }
   .expanded-controls-grid {
     grid-template-columns: 1fr;
     max-height: 75vh;
+    max-height: 75dvh;
     width: calc(100vw - 24px);
   }
 }
@@ -604,6 +619,14 @@
   color: rgba(0, 0, 0, 0.5);
 }
 
+.app-container.light .wiki-link {
+  color: rgba(0, 0, 0, 0.65);
+}
+
+.app-container.light .wiki-link:hover {
+  color: #000000;
+}
+
 .app-container.light .controls-overlay-mobile button,
 .app-container.light .plan-overlay-mobile button {
   background: rgba(0, 0, 0, 0.05);
@@ -725,15 +748,23 @@
   to { width: 100%; }
 }
 
-/* Canvas HUD (Zoom, Reset, Save PNG) */
+/* Canvas HUD (Zoom, Reset, Pause/Resume) */
 .canvas-hud {
   position: absolute;
-  bottom: 80px;
+  bottom: 25px;
   right: 25px;
   z-index: 100;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  width: 78px;
+  gap: 6px;
+}
+
+.hud-zoom-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  width: 100%;
 }
 
 .hud-btn {
@@ -742,9 +773,9 @@
   -webkit-backdrop-filter: blur(14px);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 10px;
-  min-width: 38px;
-  height: 36px;
-  padding: 0 10px;
+  width: 100%;
+  height: 34px;
+  padding: 0 8px;
   color: rgba(255, 255, 255, 0.85);
   font-family: 'Outfit', sans-serif;
   font-size: 0.82rem;
@@ -757,6 +788,11 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
+.hud-zoom-btn {
+  font-size: 1rem;
+  padding: 0;
+}
+
 .hud-btn:hover {
   background: rgba(255, 255, 255, 0.18);
   color: #fff;
@@ -764,40 +800,28 @@
   transform: translateY(-1px);
 }
 
-.floating-pause-btn {
-  position: absolute;
-  bottom: 25px;
-  right: 25px;
-  z-index: 100;
-  background: rgba(10, 15, 30, 0.4);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 20px;
-  padding: 8px 16px;
-  color: rgba(255, 255, 255, 0.7);
-  font-family: 'Outfit', sans-serif;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
+@media (max-width: 768px) {
+  .canvas-hud {
+    bottom: calc(106px + env(safe-area-inset-bottom, 0px));
+    right: 12px;
+    width: 68px;
+    gap: 5px;
+  }
 
-.floating-pause-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
-  border-color: rgba(255, 255, 255, 0.3);
-}
+  .hud-zoom-row {
+    gap: 5px;
+  }
 
-.app-container.light .floating-pause-btn {
-  background: rgba(255, 255, 255, 0.6);
-  color: rgba(0, 0, 0, 0.7);
-  border-color: rgba(0, 0, 0, 0.1);
-}
+  .hud-btn {
+    height: 30px;
+    padding: 0 6px;
+    font-size: 0.76rem;
+    border-radius: 8px;
+  }
 
-.app-container.light .floating-pause-btn:hover {
-  background: rgba(255, 255, 255, 0.9);
-  color: #000;
-  border-color: rgba(0, 0, 0, 0.3);
+  .hud-zoom-btn {
+    font-size: 0.95rem;
+  }
 }
 
 /* Modal styles */

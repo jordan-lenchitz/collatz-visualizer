@@ -306,7 +306,7 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       const target = cameraTargetRef.current;
       const t = transformRef.current;
       
-      const ease = 0.08;
+      const ease = activePathRef.current ? 0.045 : 0.08;
       const newX = t.x + (target.x - t.x) * ease;
       const newY = t.y + (target.y - t.y) * ease;
       const newK = t.k + (target.k - t.k) * ease;
@@ -615,8 +615,24 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       ctx.stroke();
       ctx.restore();
 
-      // Camera smoothly follows the comet head
-      const targetK = 1.45;
+      // Compute current & upcoming segment lengths to prevent whiplash on long moves
+      const refStepDist = 80;
+      let currentEdgeDist = refStepDist;
+      let nextEdgeDist = refStepDist;
+      if (currentIdx < maxIdx) {
+        const p0 = nodes[currentIdx];
+        const p1 = nodes[currentIdx + 1];
+        currentEdgeDist = Math.hypot(p1.x - p0.x, p1.y - p0.y) || refStepDist;
+        if (currentIdx + 1 < maxIdx) {
+          const p2 = nodes[currentIdx + 2];
+          nextEdgeDist = Math.hypot(p2.x - p1.x, p2.y - p1.y) || refStepDist;
+        }
+      }
+
+      // Camera smoothly follows the comet head, pulling back slightly on long jumps
+      const effectiveJumpDist = Math.max(currentEdgeDist, nextEdgeDist * fraction);
+      const zoomOutRatio = Math.min(1, Math.max(0, (effectiveJumpDist - refStepDist * 1.5) / 600));
+      const targetK = 1.2 - zoomOutRatio * 0.35;
       cameraTargetRef.current = {
         x: width / 2 - lightX * targetK,
         y: height * 0.5 - lightY * targetK,
@@ -624,11 +640,26 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       };
 
       if (!propsRef.current.isPaused) {
-        // Natural speed progression: 1 = slow, 5 = fast
-        const speedMultipliers = [0.008, 0.016, 0.032, 0.065, 0.12];
-        const baseSpeed = speedMultipliers[propsRef.current.speed - 1] || 0.032;
+        // Slower, calmer global speed progression: 1 = slow, 5 = fast
+        const speedMultipliers = [0.006, 0.012, 0.022, 0.04, 0.075];
+        const baseSpeed = speedMultipliers[propsRef.current.speed - 1] || 0.022;
+
+        // Normalize speed by segment distance so long moves don't whip across the screen
+        const distRatio = Math.max(1, currentEdgeDist / refStepDist);
+        const distanceScale = 1 / Math.pow(distRatio, 0.9);
+
+        // Ease in/out along long segments and slow down right before an upcoming long jump
+        let turnFactor = 1.0;
+        if (currentEdgeDist > refStepDist * 1.6) {
+          turnFactor *= 0.55 + 0.45 * Math.sin(fraction * Math.PI);
+        }
+        if (nextEdgeDist > refStepDist * 1.8 && fraction > 0.6) {
+          const approach = (fraction - 0.6) / 0.4; // 0 -> 1 as comet nears junction
+          turnFactor *= 1 - 0.45 * approach;
+        }
+
         const wasComplete = active.progress >= maxIdx;
-        active.progress += baseSpeed * (dt / 16.6) * 1.5;
+        active.progress += baseSpeed * distanceScale * turnFactor * (dt / 16.6);
         if (active.progress >= maxIdx) {
           active.progress = maxIdx;
           if (!wasComplete && propsRef.current.onPathComplete) {
@@ -903,10 +934,141 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       }
     },
     exportImage: () => {
-      if (canvasRef.current) {
-        return canvasRef.current.toDataURL('image/png');
+      const nodes = Array.from(nodesMap.current.values());
+      if (nodes.length === 0) return null;
+
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (const n of nodes) {
+        const x = n.targetX ?? n.x;
+        const y = n.targetY ?? n.y;
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
       }
-      return null;
+
+      const padding = 100;
+      const vx = minX - padding;
+      const vy = minY - padding;
+      const worldW = Math.max(400, (maxX - minX) + padding * 2);
+      const worldH = Math.max(400, (maxY - minY) + padding * 2);
+      const isDark = propsRef.current.palette === 'dark';
+
+      const getNodeColor = (node: Node) => {
+        const baseHue = (node.depth * 15) % 360;
+        const hue = (baseHue + (node.id % 2 === 0 ? 0 : 35)) % 360;
+        const depthRatio = Math.min(1, Math.max(0, 1 - node.depth / 120));
+        if (isDark) {
+          if (node.isMainPath) return '#ffffff';
+          return `hsl(${hue}, 100%, ${(60 + 25 * depthRatio).toFixed(1)}%)`;
+        } else {
+          if (node.isMainPath) return '#000000';
+          return `hsl(${hue}, 95%, ${(50 - 20 * depthRatio).toFixed(1)}%)`;
+        }
+      };
+
+      const getNodeRadius = (node: Node) => {
+        const baseR = 5.0 + Math.log10(node.id) * 3.5 + Math.log10(node.weight || 1) * 2.0;
+        return node.isMainPath ? baseR * 1.3 : baseR;
+      };
+
+      const getEdgeWidth = (edge: {source: Node, target: Node, isMain?: boolean}) => {
+        const w = 0.5 + Math.log10(edge.target.weight || 1) * 1.5;
+        return edge.isMain ? w * 2.5 : w;
+      };
+
+      const getDepthAlpha = (node: Node) => Math.max(0.65, 1 - (node.depth / 100));
+
+      const buildEdgePath = (edge: {source: Node, target: Node, isMain?: boolean}) => {
+        const x1 = edge.source.targetX ?? edge.source.x;
+        const y1 = edge.source.targetY ?? edge.source.y;
+        const x2 = edge.target.targetX ?? edge.target.x;
+        const y2 = edge.target.targetY ?? edge.target.y;
+
+        if (propsRef.current.edgeStyle === 'curved') {
+          const mx = (x1 + x2) / 2;
+          const my = (y1 + y2) / 2;
+          const dx = x2 - x1;
+          const dy = y2 - y1;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          const isEvenStep = edge.target.id === edge.source.id * 2;
+          const severity = isEvenStep ? 0.02 : 0.12;
+          const offset = dist * severity * (edge.target.id % 2 === 0 ? 1 : -1);
+          const len = dist || 1;
+          const cx = mx + (-dy / len) * offset;
+          const cy = my + (dx / len) * offset;
+          return `M ${x1.toFixed(2)} ${y1.toFixed(2)} Q ${cx.toFixed(2)} ${cy.toFixed(2)} ${x2.toFixed(2)} ${y2.toFixed(2)}`;
+        }
+        return `M ${x1.toFixed(2)} ${y1.toFixed(2)} L ${x2.toFixed(2)} ${y2.toFixed(2)}`;
+      };
+
+      const parts: string[] = [];
+      parts.push(
+        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vx.toFixed(1)} ${vy.toFixed(1)} ${worldW.toFixed(1)} ${worldH.toFixed(1)}" width="${Math.round(worldW)}" height="${Math.round(worldH)}">`,
+        `<defs><style>text { font-family: 'Outfit', system-ui, -apple-system, sans-serif; user-select: none; }</style></defs>`,
+        `<rect x="${vx.toFixed(1)}" y="${vy.toFixed(1)}" width="${worldW.toFixed(1)}" height="${worldH.toFixed(1)}" fill="${isDark ? '#020610' : '#ffffff'}" />`,
+        `<g stroke-linecap="round" stroke-linejoin="round" fill="none">`
+      );
+
+      // 1. Side edges
+      for (const edge of edges.current) {
+        if (!edge.isMain) {
+          const d = buildEdgePath(edge);
+          const color = getNodeColor(edge.target);
+          const w = getEdgeWidth(edge).toFixed(2);
+          const alpha = (0.55 * getDepthAlpha(edge.target)).toFixed(2);
+          parts.push(`<path d="${d}" stroke="${color}" stroke-width="${w}" stroke-opacity="${alpha}" />`);
+        }
+      }
+
+      // 2. Main path edges
+      const mainEdgeColor = isDark ? '#00f0ff' : '#0050dc';
+      const mainEdgeAlpha = isDark ? '0.95' : '0.85';
+      for (const edge of edges.current) {
+        if (edge.isMain) {
+          const d = buildEdgePath(edge);
+          const w = getEdgeWidth(edge).toFixed(2);
+          parts.push(`<path d="${d}" stroke="${mainEdgeColor}" stroke-width="${w}" stroke-opacity="${mainEdgeAlpha}" />`);
+        }
+      }
+      parts.push(`</g>`);
+
+      // 3. Side nodes + labels
+      const nodeFill = isDark ? '#040812' : '#ffffff';
+      const sideTextColor = isDark ? 'rgba(255,255,255,0.78)' : 'rgba(0,0,0,0.78)';
+      parts.push(`<g>`);
+      for (const node of nodes) {
+        if (!node.isMainPath) {
+          const nx = (node.targetX ?? node.x).toFixed(2);
+          const ny = (node.targetY ?? node.y).toFixed(2);
+          const r = getNodeRadius(node).toFixed(2);
+          const color = getNodeColor(node);
+          const alpha = getDepthAlpha(node).toFixed(2);
+          parts.push(
+            `<circle cx="${nx}" cy="${ny}" r="${r}" fill="${nodeFill}" stroke="${color}" stroke-width="1.8" opacity="${alpha}" />`,
+            `<text x="${nx}" y="${ny}" fill="${sideTextColor}" opacity="${alpha}" font-size="6.5" font-weight="600" text-anchor="middle" dominant-baseline="central">${node.id}</text>`
+          );
+        }
+      }
+
+      // 4. Main path nodes + labels
+      const mainTextColor = isDark ? '#ffffff' : '#000000';
+      for (const node of nodes) {
+        if (node.isMainPath) {
+          const nx = (node.targetX ?? node.x).toFixed(2);
+          const ny = (node.targetY ?? node.y).toFixed(2);
+          const r = getNodeRadius(node).toFixed(2);
+          const color = getNodeColor(node);
+          parts.push(
+            `<circle cx="${nx}" cy="${ny}" r="${r}" fill="${nodeFill}" stroke="${color}" stroke-width="2.8" />`,
+            `<text x="${nx}" y="${ny}" fill="${mainTextColor}" font-size="9" font-weight="700" text-anchor="middle" dominant-baseline="central">${node.id}</text>`
+          );
+        }
+      }
+      parts.push(`</g></svg>`);
+
+      const blob = new Blob([parts.join('\n')], { type: 'image/svg+xml;charset=utf-8' });
+      return URL.createObjectURL(blob);
     }
   }));
 

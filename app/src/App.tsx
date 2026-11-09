@@ -86,6 +86,7 @@ function App() {
         treeRef.current?.stopBuilding();
         setTreeState('IDLE');
       } else if (treeState === 'BUILT') {
+        setIsPaused(false);
         treeRef.current?.followPathDown(num);
       }
     }
@@ -129,12 +130,13 @@ function App() {
   };
 
   const handleSaveImage = () => {
-    const dataUrl = treeRef.current?.exportImage();
-    if (dataUrl) {
+    const svgUrl = treeRef.current?.exportImage();
+    if (svgUrl) {
       const a = document.createElement('a');
-      a.href = dataUrl;
-      a.download = `collatz-tree-${seed}.png`;
+      a.href = svgUrl;
+      a.download = `collatz-tree-${seed}.svg`;
       a.click();
+      setTimeout(() => URL.revokeObjectURL(svgUrl), 1000);
     }
   };
 
@@ -202,17 +204,15 @@ function App() {
   return (
     <div className={`app-container ${palette}`} role="main" aria-label="Collatz Visualizer Application">
       <div className="title-overlay" aria-hidden="true">
-        <h1><span>collatz</span>{!isMobile && ' visualizer'}</h1>
-        {!isMobile && (
-          <div className="subtitle">
-            <span className="rule-text">if even divide by two</span><br/>
-            <span className="rule-text">if odd multiply by three and add one</span><br/>
-            <span className="bottom-text">we always seem to get to one at the end</span><br/>
-            <a href="https://en.wikipedia.org/wiki/Collatz_conjecture" target="_blank" rel="noopener noreferrer" className="wiki-link">
-              see wikipedia for more
-            </a>
-          </div>
-        )}
+        <h1><span>collatz</span> visualizer</h1>
+        <div className="subtitle">
+          <span className="rule-text">if even divide by two</span><br/>
+          <span className="rule-text">if odd multiply by three and add one</span><br/>
+          <span className="bottom-text">we always seem to get to one at the end</span><br/>
+          <a href="https://en.wikipedia.org/wiki/Collatz_conjecture" target="_blank" rel="noopener noreferrer" className="wiki-link">
+            see wikipedia for more
+          </a>
+        </div>
       </div>
       
       {/* Screen Reader Only Announcement Region */}
@@ -243,11 +243,11 @@ function App() {
         }}
       />
 
-      {/* Floating Canvas Navigation HUD on Desktop (pinch-to-zoom is native on mobile) */}
-      {!isMobile && (
-        <div className="canvas-hud" role="toolbar" aria-label="Canvas Navigation">
+      {/* Floating Canvas Navigation HUD */}
+      <div className="canvas-hud" role="toolbar" aria-label="Canvas Navigation">
+        <div className="hud-zoom-row">
           <button 
-            className="hud-btn" 
+            className="hud-btn hud-zoom-btn" 
             onClick={() => treeRef.current?.zoomIn()} 
             title="Zoom in"
             aria-label="Zoom in"
@@ -255,41 +255,30 @@ function App() {
             +
           </button>
           <button 
-            className="hud-btn" 
+            className="hud-btn hud-zoom-btn" 
             onClick={() => treeRef.current?.zoomOut()} 
             title="Zoom out"
             aria-label="Zoom out"
           >
-            -
-          </button>
-          <button 
-            className="hud-btn" 
-            onClick={() => treeRef.current?.resetView()} 
-            title="Reset canvas view"
-            aria-label="Reset canvas view"
-          >
-            reset
-          </button>
-          <button 
-            className="hud-btn" 
-            onClick={handleSaveImage} 
-            title="Save image as PNG"
-            aria-label="Save image as PNG"
-          >
-            save
+            −
           </button>
         </div>
-      )}
-
-      {!isMobile && (
         <button 
-          className="floating-pause-btn" 
+          className="hud-btn" 
+          onClick={() => treeRef.current?.resetView()} 
+          title="Reset canvas view"
+          aria-label="Reset canvas view"
+        >
+          reset
+        </button>
+        <button 
+          className="hud-btn" 
           onClick={() => setIsPaused(!isPaused)}
           aria-label={isPaused ? 'Resume Animation' : 'Pause Animation'}
         >
           {isPaused ? 'resume' : 'pause'}
         </button>
-      )}
+      </div>
 
       {/* Bottom Main UI Controls & Presets */}
       <div className="bottom-dock">
@@ -355,16 +344,14 @@ function App() {
             {treeState === 'BUILDING' && (isMobile ? 'cancel' : 'stop growing (cancel)')}
             {treeState === 'BUILT' && (isMobile ? 'trace to 1' : 'follow path home (to 1)')}
           </button>
-          {!isMobile && (
-            <button
-              className={`action-btn ${isExploreMode ? 'explore-active' : ''}`}
-              onClick={toggleExploreMode}
-              aria-pressed={isExploreMode}
-              aria-label="toggle free explore camera mode"
-            >
-              {isExploreMode ? 'stop exploring' : 'explore freely'}
-            </button>
-          )}
+          <button
+            className={`action-btn ${isExploreMode ? 'explore-active' : ''}`}
+            onClick={toggleExploreMode}
+            aria-pressed={isExploreMode}
+            aria-label="toggle free explore camera mode"
+          >
+            {isExploreMode ? 'stop exploring' : 'explore freely'}
+          </button>
         </div>
       </div>
 
@@ -388,15 +375,6 @@ function App() {
               <button onClick={() => setIsPaused(!isPaused)}>
                 {isPaused ? 'resume animation' : 'pause animation'}
               </button>
-
-              {isMobile && (
-                <button
-                  className={isExploreMode ? 'explore-active' : ''}
-                  onClick={toggleExploreMode}
-                >
-                  {isExploreMode ? 'stop exploring (lock camera)' : 'explore freely (free camera)'}
-                </button>
-              )}
               
               <div className="slider-container">
                 <div className="slider-header">
@@ -437,7 +415,7 @@ function App() {
               </button>
 
               <button onClick={handleSaveImage}>
-                export tree png
+                export tree svg
               </button>
             </div>
 
