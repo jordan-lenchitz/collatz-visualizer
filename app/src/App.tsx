@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import './App.css';
-import CollatzTree, { type CollatzTreeRef } from './CollatzTree';
+import CollatzTree, { type CollatzTreeRef, type ColorScheme } from './CollatzTree';
 
 const PRESET_SEEDS = [
   { label: '27', value: 27 },
@@ -40,6 +40,7 @@ function App() {
   const [speed, setSpeed] = useState(3);
   const [isPaused, setIsPaused] = useState(false);
   const [palette, setPalette] = useState<'dark' | 'light'>('dark');
+  const [colorScheme, setColorScheme] = useState<ColorScheme>('prism');
 
   const [edgeStyle, setEdgeStyle] = useState<'curved' | 'straight'>('curved');
   const density = 'high'; 
@@ -227,6 +228,7 @@ function App() {
         speed={speed} 
         isPaused={isPaused} 
         palette={palette} 
+        colorScheme={colorScheme}
         edgeStyle={edgeStyle}
         density={density}
         hoveredNodeId={hoveredNodeId}
@@ -270,13 +272,6 @@ function App() {
           aria-label="Reset canvas view"
         >
           reset
-        </button>
-        <button 
-          className="hud-btn" 
-          onClick={() => setIsPaused(!isPaused)}
-          aria-label={isPaused ? 'Resume Animation' : 'Pause Animation'}
-        >
-          {isPaused ? 'resume' : 'pause'}
         </button>
       </div>
 
@@ -345,6 +340,14 @@ function App() {
             {treeState === 'BUILT' && (isMobile ? 'trace to 1' : 'follow path home (to 1)')}
           </button>
           <button
+            className={`action-btn pause-btn ${isPaused ? 'pause-active' : ''}`}
+            onClick={() => setIsPaused(!isPaused)}
+            aria-pressed={isPaused}
+            aria-label={isPaused ? 'Resume Animation' : 'Pause Animation'}
+          >
+            {isPaused ? 'resume' : 'pause'}
+          </button>
+          <button
             className={`action-btn ${isExploreMode ? 'explore-active' : ''}`}
             onClick={toggleExploreMode}
             aria-pressed={isExploreMode}
@@ -407,6 +410,30 @@ function App() {
                 >
                   <option value="curved">curved lines</option>
                   <option value="straight">straight lines</option>
+                </select>
+              </div>
+
+              <div className="slider-container">
+                <label htmlFor="color-scheme-select">tree color scheme</label>
+                <select
+                  id="color-scheme-select"
+                  className="lowcase-select"
+                  value={colorScheme}
+                  onChange={e => setColorScheme(e.target.value as ColorScheme)}
+                  aria-label="Tree color scheme selection"
+                >
+                  <option value="prism">prism</option>
+                  <option value="crimson">crimson</option>
+                  <option value="ember">ember</option>
+                  <option value="solar">solar</option>
+                  <option value="forest">forest</option>
+                  <option value="ocean">ocean</option>
+                  <option value="indigo">indigo</option>
+                  <option value="orchid">orchid</option>
+                  <option value="aurora">aurora</option>
+                  <option value="sunset">sunset</option>
+                  <option value="cyber">cyber</option>
+                  <option value="monochrome">monochrome</option>
                 </select>
               </div>
 

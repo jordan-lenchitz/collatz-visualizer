@@ -35,10 +35,195 @@ interface TreeHierarchyDatum {
   children: TreeHierarchyDatum[];
 }
 
+export type ColorScheme =
+  | 'prism'
+  | 'crimson'
+  | 'ember'
+  | 'solar'
+  | 'forest'
+  | 'ocean'
+  | 'indigo'
+  | 'orchid'
+  | 'aurora'
+  | 'sunset'
+  | 'cyber'
+  | 'monochrome';
+
+interface SchemeTheme {
+  pulseFill: string;
+  pulseShadow: string;
+  activePath: string;
+  mainNodeColor: string;
+  mainEdgeHex: string;
+  mainEdgeAlpha: number;
+  svgBg: string;
+  nodeFill: string;
+  sideTextColor: string;
+  mainTextColor: string;
+  getSideNodeColor: (depth: number, id: number) => string;
+}
+
+interface HueBandConfig {
+  hueStart: number;
+  hueSpan: number;
+  hueStep: number;
+  oddOffset: number;
+  satDark: number;
+  satLight: number;
+  lumDarkBase?: number;
+  lumDarkSpan?: number;
+  lumLightBase?: number;
+  lumLightSpan?: number;
+  pulseShadowDark: string;
+  pulseShadowLight: string;
+  activePathDark: string;
+  activePathLight: string;
+  mainEdgeDark: string;
+  mainEdgeLight: string;
+  pulseFillDark?: string;
+  pulseFillLight?: string;
+}
+
+const SCHEME_CONFIGS: Record<Exclude<ColorScheme, 'cyber'>, HueBandConfig> = {
+  prism: {
+    hueStart: 0, hueSpan: 360, hueStep: 15, oddOffset: 35,
+    satDark: 100, satLight: 95,
+    lumDarkBase: 60, lumDarkSpan: 25, lumLightBase: 50, lumLightSpan: 20,
+    pulseFillDark: '#ffffff', pulseFillLight: '#0064c8',
+    pulseShadowDark: '#00ffaa', pulseShadowLight: '#00b8ff',
+    activePathDark: 'rgba(0, 255, 170, 0.7)', activePathLight: 'rgba(0, 100, 200, 0.7)',
+    mainEdgeDark: '#00f0ff', mainEdgeLight: '#0050dc',
+  },
+  crimson: {
+    hueStart: 345, hueSpan: 27, hueStep: 5, oddOffset: 9,
+    satDark: 92, satLight: 84,
+    pulseShadowDark: '#fb7185', pulseShadowLight: '#e11d48',
+    activePathDark: 'rgba(255, 77, 109, 0.75)', activePathLight: 'rgba(185, 28, 28, 0.75)',
+    mainEdgeDark: '#ff4d6d', mainEdgeLight: '#b91c1c',
+  },
+  ember: {
+    hueStart: 14, hueSpan: 26, hueStep: 5, oddOffset: 8,
+    satDark: 95, satLight: 88,
+    pulseShadowDark: '#fdba74', pulseShadowLight: '#ea580c',
+    activePathDark: 'rgba(251, 146, 60, 0.78)', activePathLight: 'rgba(194, 65, 12, 0.75)',
+    mainEdgeDark: '#fb923c', mainEdgeLight: '#c2410c',
+  },
+  solar: {
+    hueStart: 42, hueSpan: 20, hueStep: 4, oddOffset: 7,
+    satDark: 94, satLight: 86,
+    lumDarkBase: 56, lumDarkSpan: 22, lumLightBase: 44, lumLightSpan: 14,
+    pulseShadowDark: '#fef08a', pulseShadowLight: '#ca8a04',
+    activePathDark: 'rgba(253, 224, 71, 0.78)', activePathLight: 'rgba(161, 98, 7, 0.78)',
+    mainEdgeDark: '#fde047', mainEdgeLight: '#a16207',
+  },
+  forest: {
+    hueStart: 125, hueSpan: 35, hueStep: 7, oddOffset: 12,
+    satDark: 84, satLight: 76,
+    pulseShadowDark: '#86efac', pulseShadowLight: '#16a34a',
+    activePathDark: 'rgba(74, 222, 128, 0.75)', activePathLight: 'rgba(21, 128, 61, 0.75)',
+    mainEdgeDark: '#4ade80', mainEdgeLight: '#15803d',
+  },
+  ocean: {
+    hueStart: 188, hueSpan: 40, hueStep: 8, oddOffset: 14,
+    satDark: 92, satLight: 85,
+    pulseShadowDark: '#67e8f9', pulseShadowLight: '#0284c7',
+    activePathDark: 'rgba(56, 189, 248, 0.75)', activePathLight: 'rgba(3, 105, 161, 0.75)',
+    mainEdgeDark: '#38bdf8', mainEdgeLight: '#0369a1',
+  },
+  indigo: {
+    hueStart: 235, hueSpan: 33, hueStep: 6, oddOffset: 11,
+    satDark: 88, satLight: 80,
+    pulseShadowDark: '#a5b4fc', pulseShadowLight: '#4f46e5',
+    activePathDark: 'rgba(129, 140, 248, 0.78)', activePathLight: 'rgba(55, 48, 163, 0.78)',
+    mainEdgeDark: '#818cf8', mainEdgeLight: '#3730a3',
+  },
+  orchid: {
+    hueStart: 278, hueSpan: 46, hueStep: 9, oddOffset: 16,
+    satDark: 90, satLight: 82,
+    pulseShadowDark: '#f0abfc', pulseShadowLight: '#a21caf',
+    activePathDark: 'rgba(232, 121, 249, 0.75)', activePathLight: 'rgba(134, 25, 143, 0.75)',
+    mainEdgeDark: '#e879f9', mainEdgeLight: '#86198f',
+  },
+  aurora: {
+    hueStart: 145, hueSpan: 140, hueStep: 14, oddOffset: 28,
+    satDark: 90, satLight: 82,
+    pulseShadowDark: '#a855f7', pulseShadowLight: '#7c3aed',
+    activePathDark: 'rgba(94, 255, 200, 0.75)', activePathLight: 'rgba(0, 135, 90, 0.75)',
+    mainEdgeDark: '#5effc8', mainEdgeLight: '#00875a',
+  },
+  sunset: {
+    hueStart: 320, hueSpan: 85, hueStep: 12, oddOffset: 22,
+    satDark: 95, satLight: 88,
+    pulseShadowDark: '#ff4d8d', pulseShadowLight: '#db2777',
+    activePathDark: 'rgba(255, 184, 77, 0.78)', activePathLight: 'rgba(194, 65, 12, 0.75)',
+    mainEdgeDark: '#ffb84d', mainEdgeLight: '#c2410c',
+  },
+  monochrome: {
+    hueStart: 215, hueSpan: 1, hueStep: 0, oddOffset: 0,
+    satDark: 8, satLight: 8,
+    lumDarkBase: 48, lumDarkSpan: 34, lumLightBase: 55, lumLightSpan: 30,
+    pulseShadowDark: '#cbd5e1', pulseShadowLight: '#475569',
+    activePathDark: 'rgba(248, 250, 252, 0.75)', activePathLight: 'rgba(15, 23, 42, 0.75)',
+    mainEdgeDark: '#f8fafc', mainEdgeLight: '#0f172a',
+  },
+};
+
+function getSchemeTheme(scheme: ColorScheme, palette: 'dark' | 'light'): SchemeTheme {
+  const isDark = palette === 'dark';
+  const base = {
+    mainNodeColor: isDark ? '#ffffff' : '#000000',
+    mainEdgeAlpha: isDark ? 0.95 : 0.85,
+    svgBg: isDark ? '#020610' : '#ffffff',
+    nodeFill: isDark ? '#040812' : '#ffffff',
+    sideTextColor: isDark ? 'rgba(255,255,255,0.78)' : 'rgba(0,0,0,0.78)',
+    mainTextColor: isDark ? '#ffffff' : '#000000',
+  };
+
+  const formatHsl = (h: number, s: number, l: number) => `hsl(${Math.round(h)}, ${s}%, ${l.toFixed(1)}%)`;
+
+  if (scheme === 'cyber') {
+    return {
+      ...base,
+      pulseFill: isDark ? '#ffffff' : '#0f172a',
+      pulseShadow: isDark ? '#ff2a85' : '#be185d',
+      activePath: isDark ? 'rgba(0, 245, 212, 0.78)' : 'rgba(15, 118, 110, 0.78)',
+      mainEdgeHex: isDark ? '#00f5d4' : '#0f766e',
+      getSideNodeColor: (depth, id) => {
+        const depthRatio = Math.min(1, Math.max(0, 1 - depth / 120));
+        const hue = id % 2 === 0 ? 182 + (depth % 18) : 322 + (depth % 18);
+        return formatHsl(hue, isDark ? 96 : 86, isDark ? 56 + 22 * depthRatio : 46 - 16 * depthRatio);
+      },
+    };
+  }
+
+  const cfg = SCHEME_CONFIGS[scheme] ?? SCHEME_CONFIGS.prism;
+  const lumDarkBase = cfg.lumDarkBase ?? 55;
+  const lumDarkSpan = cfg.lumDarkSpan ?? 24;
+  const lumLightBase = cfg.lumLightBase ?? 46;
+  const lumLightSpan = cfg.lumLightSpan ?? 18;
+
+  return {
+    ...base,
+    pulseFill: isDark ? (cfg.pulseFillDark ?? '#ffffff') : (cfg.pulseFillLight ?? '#0f172a'),
+    pulseShadow: isDark ? cfg.pulseShadowDark : cfg.pulseShadowLight,
+    activePath: isDark ? cfg.activePathDark : cfg.activePathLight,
+    mainEdgeHex: isDark ? cfg.mainEdgeDark : cfg.mainEdgeLight,
+    getSideNodeColor: (depth, id) => {
+      const depthRatio = Math.min(1, Math.max(0, 1 - depth / 120));
+      const offset = (depth * cfg.hueStep + (id % 2 === 0 ? 0 : cfg.oddOffset)) % cfg.hueSpan;
+      const hue = (cfg.hueStart + offset) % 360;
+      const sat = isDark ? cfg.satDark : cfg.satLight;
+      const lum = isDark ? lumDarkBase + lumDarkSpan * depthRatio : lumLightBase - lumLightSpan * depthRatio;
+      return formatHsl(hue, sat, lum);
+    },
+  };
+}
+
 interface CollatzTreeProps {
   speed: number;
   isPaused: boolean;
   palette: 'dark' | 'light';
+  colorScheme: ColorScheme;
   edgeStyle: 'curved' | 'straight';
   density: 'low' | 'medium' | 'high';
   hoveredNodeId: number | null;
@@ -69,6 +254,7 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
   const activeTaskRef = useRef<{ timeoutId?: number, isRunning: boolean }>({ isRunning: false });
   const activePathRef = useRef<{ nodes: Node[], progress: number } | null>(null);
   const isExploreModeRef = useRef(false);
+  const userZoomedDuringFollowRef = useRef(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const lastTimeRef = useRef<number>(0);
 
@@ -204,6 +390,7 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
     edges.current = [];
     activePathRef.current = null;
     cameraTargetRef.current = null;
+    userZoomedDuringFollowRef.current = false;
     
     nodesMap.current.set(1, {
       id: 1,
@@ -309,7 +496,9 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       const ease = activePathRef.current ? 0.045 : 0.08;
       const newX = t.x + (target.x - t.x) * ease;
       const newY = t.y + (target.y - t.y) * ease;
-      const newK = t.k + (target.k - t.k) * ease;
+      const newK = (userZoomedDuringFollowRef.current && activePathRef.current)
+        ? t.k
+        : t.k + (target.k - t.k) * ease;
       
       transformRef.current = d3.zoomIdentity.translate(newX, newY).scale(newK);
       
@@ -371,37 +560,21 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     
-    const getThemeColors = () => {
-      return propsRef.current.palette === 'light' ? {
-        pulseFill: '#0064c8',
-        pulseShadow: '#00b8ff',
-        activePath: 'rgba(0, 100, 200, 0.7)'
-      } : {
-        pulseFill: '#ffffff',
-        pulseShadow: '#00ffaa',
-        activePath: 'rgba(0, 255, 170, 0.7)'
-      };
-    };
-    const theme = getThemeColors();
+    const theme = getSchemeTheme(propsRef.current.colorScheme, propsRef.current.palette);
 
     const getNodeColor = (node: Node) => {
-      const baseHue = (node.depth * 15) % 360;
-      const hue = (baseHue + (node.id % 2 === 0 ? 0 : 35)) % 360;
-      const depthRatio = Math.min(1, Math.max(0, 1 - node.depth / 120));
-      
-      if (propsRef.current.palette === 'dark') {
-        if (node.isMainPath) return '#ffffff';
-        const lum = 60 + 25 * depthRatio;
-        return `hsl(${hue}, 100%, ${lum}%)`;
-      } else {
-        if (node.isMainPath) return '#000000';
-        const lum = 50 - 20 * depthRatio;
-        return `hsl(${hue}, 95%, ${lum}%)`;
-      }
+      if (node.isMainPath) return theme.mainNodeColor;
+      return theme.getSideNodeColor(node.depth, node.id);
     };
 
     const getEdgeColor = (edge: {source: Node, target: Node, isMain?: boolean}) => {
-      if (edge.isMain) return propsRef.current.palette === 'dark' ? 'rgba(0, 240, 255, 0.95)' : 'rgba(0, 80, 220, 0.85)';
+      if (edge.isMain) {
+        const hex = theme.mainEdgeHex;
+        const r = parseInt(hex.slice(1, 3), 16);
+        const g = parseInt(hex.slice(3, 5), 16);
+        const b = parseInt(hex.slice(5, 7), 16);
+        return `rgba(${r}, ${g}, ${b}, ${theme.mainEdgeAlpha})`;
+      }
       const c = getNodeColor(edge.target);
       return c.replace(')', ', 0.55)').replace('hsl', 'hsla');
     };
@@ -630,9 +803,12 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       }
 
       // Camera smoothly follows the comet head, pulling back slightly on long jumps
+      // unless the user has manually zoomed during this follow-path run
       const effectiveJumpDist = Math.max(currentEdgeDist, nextEdgeDist * fraction);
       const zoomOutRatio = Math.min(1, Math.max(0, (effectiveJumpDist - refStepDist * 1.5) / 600));
-      const targetK = 1.2 - zoomOutRatio * 0.35;
+      const targetK = userZoomedDuringFollowRef.current
+        ? transformRef.current.k
+        : 1.2 - zoomOutRatio * 0.35;
       cameraTargetRef.current = {
         x: width / 2 - lightX * targetK,
         y: height * 0.5 - lightY * targetK,
@@ -884,6 +1060,7 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
         fullPath.push(n);
         c = n.parent;
       }
+      userZoomedDuringFollowRef.current = false;
       activePathRef.current = {
         nodes: fullPath,
         progress: 0
@@ -927,6 +1104,7 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       }
     },
     resetView: () => {
+      userZoomedDuringFollowRef.current = false;
       if (canvasRef.current && zoomBehaviorRef.current) {
         const canvas = canvasRef.current;
         const initialTransform = d3.zoomIdentity.translate(canvas.width / 2, canvas.height * 0.85).scale(1.0);
@@ -952,19 +1130,11 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       const vy = minY - padding;
       const worldW = Math.max(400, (maxX - minX) + padding * 2);
       const worldH = Math.max(400, (maxY - minY) + padding * 2);
-      const isDark = propsRef.current.palette === 'dark';
+      const theme = getSchemeTheme(propsRef.current.colorScheme, propsRef.current.palette);
 
       const getNodeColor = (node: Node) => {
-        const baseHue = (node.depth * 15) % 360;
-        const hue = (baseHue + (node.id % 2 === 0 ? 0 : 35)) % 360;
-        const depthRatio = Math.min(1, Math.max(0, 1 - node.depth / 120));
-        if (isDark) {
-          if (node.isMainPath) return '#ffffff';
-          return `hsl(${hue}, 100%, ${(60 + 25 * depthRatio).toFixed(1)}%)`;
-        } else {
-          if (node.isMainPath) return '#000000';
-          return `hsl(${hue}, 95%, ${(50 - 20 * depthRatio).toFixed(1)}%)`;
-        }
+        if (node.isMainPath) return theme.mainNodeColor;
+        return theme.getSideNodeColor(node.depth, node.id);
       };
 
       const getNodeRadius = (node: Node) => {
@@ -1006,7 +1176,7 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       parts.push(
         `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vx.toFixed(1)} ${vy.toFixed(1)} ${worldW.toFixed(1)} ${worldH.toFixed(1)}" width="${Math.round(worldW)}" height="${Math.round(worldH)}">`,
         `<defs><style>text { font-family: 'Outfit', system-ui, -apple-system, sans-serif; user-select: none; }</style></defs>`,
-        `<rect x="${vx.toFixed(1)}" y="${vy.toFixed(1)}" width="${worldW.toFixed(1)}" height="${worldH.toFixed(1)}" fill="${isDark ? '#020610' : '#ffffff'}" />`,
+        `<rect x="${vx.toFixed(1)}" y="${vy.toFixed(1)}" width="${worldW.toFixed(1)}" height="${worldH.toFixed(1)}" fill="${theme.svgBg}" />`,
         `<g stroke-linecap="round" stroke-linejoin="round" fill="none">`
       );
 
@@ -1022,8 +1192,8 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       }
 
       // 2. Main path edges
-      const mainEdgeColor = isDark ? '#00f0ff' : '#0050dc';
-      const mainEdgeAlpha = isDark ? '0.95' : '0.85';
+      const mainEdgeColor = theme.mainEdgeHex;
+      const mainEdgeAlpha = theme.mainEdgeAlpha.toFixed(2);
       for (const edge of edges.current) {
         if (edge.isMain) {
           const d = buildEdgePath(edge);
@@ -1034,8 +1204,8 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       parts.push(`</g>`);
 
       // 3. Side nodes + labels
-      const nodeFill = isDark ? '#040812' : '#ffffff';
-      const sideTextColor = isDark ? 'rgba(255,255,255,0.78)' : 'rgba(0,0,0,0.78)';
+      const nodeFill = theme.nodeFill;
+      const sideTextColor = theme.sideTextColor;
       parts.push(`<g>`);
       for (const node of nodes) {
         if (!node.isMainPath) {
@@ -1052,7 +1222,7 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
       }
 
       // 4. Main path nodes + labels
-      const mainTextColor = isDark ? '#ffffff' : '#000000';
+      const mainTextColor = theme.mainTextColor;
       for (const node of nodes) {
         if (node.isMainPath) {
           const nx = (node.targetX ?? node.x).toFixed(2);
@@ -1090,6 +1260,9 @@ const CollatzTree = forwardRef<CollatzTreeRef, CollatzTreeProps>((props, ref) =>
     const zoom = d3.zoom<HTMLCanvasElement, unknown>()
       .scaleExtent([0.05, 15])
       .on('zoom', (e: d3.D3ZoomEvent<HTMLCanvasElement, unknown>) => {
+        if (activePathRef.current && Math.abs(e.transform.k - transformRef.current.k) > 1e-6) {
+          userZoomedDuringFollowRef.current = true;
+        }
         transformRef.current = e.transform;
       });
     zoomBehaviorRef.current = zoom;
