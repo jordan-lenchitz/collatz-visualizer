@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import confetti from 'canvas-confetti';
 import './App.css';
 import CollatzTree, { type CollatzTreeRef, type ColorScheme } from './CollatzTree';
@@ -31,6 +31,129 @@ function pickRandomSeed(exclude: number): number {
   return available[Math.floor(Math.random() * available.length)] || 27;
 }
 
+interface SequenceAnalysisPanelProps {
+  sequence: number[];
+  seed: string;
+  hoveredNodeId: number | null;
+  onHoverNode: (id: number | null) => void;
+  onFocusNode: (id: number) => void;
+}
+
+const SequenceAnalysisPanel = memo(function SequenceAnalysisPanel({
+  sequence,
+  seed,
+  hoveredNodeId,
+  onHoverNode,
+  onFocusNode,
+}: SequenceAnalysisPanelProps) {
+  const { maxVal, oddStepsCount, evenStepsCount, sparkline } = useMemo(() => {
+    let max = 1;
+    let odd = 0;
+    for (let i = 0; i < sequence.length; i++) {
+      const v = sequence[i];
+      if (v > max) max = v;
+      if (v % 2 !== 0) odd++;
+    }
+    const even = sequence.length - odd;
+
+    if (sequence.length < 2) {
+      return { maxVal: max, oddStepsCount: odd, evenStepsCount: even, sparkline: null };
+    }
+
+    const width = 260;
+    const height = 70;
+    const padding = 8;
+    const chartW = width - padding * 2;
+    const chartH = height - padding * 2;
+    const denom = sequence.length - 1;
+
+    const points = new Array<{ x: number; y: number; val: number; idx: number }>(sequence.length);
+    const pathParts = new Array<string>(sequence.length);
+
+    for (let idx = 0; idx < sequence.length; idx++) {
+      const val = sequence[idx];
+      const x = padding + (idx / denom) * chartW;
+      const y = padding + chartH - (val / max) * chartH;
+      points[idx] = { x, y, val, idx };
+      pathParts[idx] = `${idx === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
+    }
+
+    const pathD = pathParts.join(' ');
+    const areaD = `${pathD} L ${(padding + chartW).toFixed(1)} ${(padding + chartH).toFixed(1)} L ${padding.toFixed(1)} ${(padding + chartH).toFixed(1)} Z`;
+
+    return {
+      maxVal: max,
+      oddStepsCount: odd,
+      evenStepsCount: even,
+      sparkline: { width, height, points, pathD, areaD },
+    };
+  }, [sequence]);
+
+  return (
+    <div className="plan-overlay-mobile">
+      <div className="plan-title">analysis for seed {sequence[0] || seed}</div>
+      {sparkline && (
+        <div className="sparkline-container" role="region" aria-label="Hailstone altitude chart">
+          <svg viewBox={`0 0 ${sparkline.width} ${sparkline.height}`} className="sparkline-svg">
+            <defs>
+              <linearGradient id="altitudeGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--primary-glow)" stopOpacity="0.4" />
+                <stop offset="100%" stopColor="var(--primary-glow)" stopOpacity="0.0" />
+              </linearGradient>
+            </defs>
+            <path d={sparkline.areaD} fill="url(#altitudeGradient)" />
+            <path d={sparkline.pathD} fill="none" stroke="var(--primary-glow)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            {sparkline.points.map((pt) => {
+              const isHovered = hoveredNodeId === pt.val;
+              return (
+                <circle
+                  key={pt.idx}
+                  cx={pt.x}
+                  cy={pt.y}
+                  r={isHovered ? 4.5 : 2}
+                  fill={isHovered ? '#ff00b8' : 'var(--primary-glow)'}
+                  className="sparkline-dot"
+                  onMouseEnter={() => onHoverNode(pt.val)}
+                  onMouseLeave={() => onHoverNode(null)}
+                  onClick={() => onFocusNode(pt.val)}
+                />
+              );
+            })}
+          </svg>
+          <div className="sparkline-labels">
+            <span>start: {sequence[0]}</span>
+            <span>peak: {maxVal}</span>
+            <span>end: 1</span>
+          </div>
+        </div>
+      )}
+      <div className="plan-stats-grid">
+        <div className="plan-stat"><span>peak:</span> <strong>{maxVal}</strong></div>
+        <div className="plan-stat"><span>steps:</span> <strong>{sequence.length - 1}</strong></div>
+        <div className="plan-stat"><span>even:</span> <strong>{evenStepsCount}</strong></div>
+        <div className="plan-stat"><span>odd:</span> <strong>{oddStepsCount}</strong></div>
+      </div>
+      <div className="step-list-mini">
+        {sequence.map((val, idx) => {
+          const isHovered = hoveredNodeId === val;
+          return (
+            <div
+              key={idx}
+              className={`plan-step ${isHovered ? 'hovered' : ''}`}
+              onMouseEnter={() => onHoverNode(val)}
+              onMouseLeave={() => onHoverNode(null)}
+              onClick={() => onFocusNode(val)}
+              title="Click to focus node on tree"
+            >
+              step {idx}: {val} <span style={{ opacity: 0.5 }}>{val % 2 === 0 ? '(even)' : '(odd)'}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
 function App() {
   const [seed, setSeed] = useState<string>('27');
   const [treeState, setTreeState] = useState<'IDLE' | 'BUILDING' | 'BUILT'>('IDLE');
@@ -52,6 +175,16 @@ function App() {
   const [pendingSeed, setPendingSeed] = useState<number | null>(null);
 
   const treeRef = useRef<CollatzTreeRef>(null);
+  const paletteRef = useRef(palette);
+  const isSequenceModeRef = useRef(isSequenceMode);
+
+  useEffect(() => {
+    paletteRef.current = palette;
+  }, [palette]);
+
+  useEffect(() => {
+    isSequenceModeRef.current = isSequenceMode;
+  }, [isSequenceMode]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -61,28 +194,22 @@ function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const updateSequence = (num: number) => {
-    setSequence(calculateSequence(num));
-  };
-
   const handleAction = () => {
     const num = parseInt(seed, 10);
     if (!isNaN(num) && num > 0) {
       if (treeState === 'IDLE') {
         setTreeState('BUILDING');
-        updateSequence(num);
-        
-        setTimeout(() => {
-          treeRef.current?.buildTree(num, () => {
-            setTreeState('BUILT');
-            confetti({
-              particleCount: 150,
-              spread: 80,
-              origin: { y: 0.6 },
-              colors: palette === 'dark' ? ['#00ffaa', '#00b8ff', '#ffffff'] : ['#009650', '#0064c8', '#ffffff']
-            });
+        setSequence(calculateSequence(num));
+
+        treeRef.current?.buildTree(num, () => {
+          setTreeState('BUILT');
+          confetti({
+            particleCount: 150,
+            spread: 80,
+            origin: { y: 0.6 },
+            colors: paletteRef.current === 'dark' ? ['#00ffaa', '#00b8ff', '#ffffff'] : ['#009650', '#0064c8', '#ffffff']
           });
-        }, 50);
+        });
       } else if (treeState === 'BUILDING') {
         treeRef.current?.stopBuilding();
         setTreeState('IDLE');
@@ -109,20 +236,39 @@ function App() {
     treeRef.current?.setExploreMode(!isExploreMode);
   };
 
-  const handleSelectNode = (nodeId: number) => {
+  const handleSelectNode = useCallback((nodeId: number) => {
     setSeed(nodeId.toString());
     setTreeState('BUILDING');
-    updateSequence(nodeId);
+    setSequence(calculateSequence(nodeId));
     treeRef.current?.buildTree(nodeId, () => {
       setTreeState('BUILT');
       confetti({
         particleCount: 100,
         spread: 60,
         origin: { y: 0.6 },
-        colors: palette === 'dark' ? ['#00ffaa', '#00b8ff', '#ffffff'] : ['#009650', '#0064c8', '#ffffff']
+        colors: paletteRef.current === 'dark' ? ['#00ffaa', '#00b8ff', '#ffffff'] : ['#009650', '#0064c8', '#ffffff']
       });
     });
-  };
+  }, []);
+
+  const handleHoverNodeFromTree = useCallback((id: number | null) => {
+    if (isSequenceModeRef.current) {
+      setHoveredNodeId(id);
+    }
+  }, []);
+
+  const handleFocusNode = useCallback((id: number) => {
+    treeRef.current?.focusOnNode(id);
+  }, []);
+
+  const handlePathComplete = useCallback(() => {
+    confetti({
+      particleCount: 200,
+      spread: 100,
+      origin: { y: 0.6 },
+      colors: paletteRef.current === 'dark' ? ['#00ffaa', '#00b8ff', '#ffffff'] : ['#009650', '#0064c8', '#ffffff']
+    });
+  }, []);
 
   const handleRandomSeed = () => {
     const currentNum = parseInt(seed, 10);
@@ -139,67 +285,6 @@ function App() {
       a.click();
       setTimeout(() => URL.revokeObjectURL(svgUrl), 1000);
     }
-  };
-
-  const maxVal = sequence.length > 0 ? Math.max(...sequence) : 1;
-  const oddStepsCount = sequence.filter(n => n % 2 !== 0).length;
-  const evenStepsCount = sequence.length - oddStepsCount;
-
-  // Render SVG Sparkline for Hailstone altitude
-  const renderSparkline = () => {
-    if (sequence.length < 2) return null;
-    const width = 260;
-    const height = 70;
-    const padding = 8;
-    const chartW = width - padding * 2;
-    const chartH = height - padding * 2;
-
-    const points = sequence.map((val, idx) => {
-      const x = padding + (idx / (sequence.length - 1)) * chartW;
-      const y = padding + chartH - (val / maxVal) * chartH;
-      return { x, y, val, idx };
-    });
-
-    const pathD = points.reduce((acc, pt, i) => `${acc} ${i === 0 ? 'M' : 'L'} ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`, '');
-    const areaD = `${pathD} L ${(padding + chartW).toFixed(1)} ${(padding + chartH).toFixed(1)} L ${padding.toFixed(1)} ${(padding + chartH).toFixed(1)} Z`;
-
-    return (
-      <div className="sparkline-container" role="region" aria-label="Hailstone altitude chart">
-        <svg viewBox={`0 0 ${width} ${height}`} className="sparkline-svg">
-          <defs>
-            <linearGradient id="altitudeGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--primary-glow)" stopOpacity="0.4" />
-              <stop offset="100%" stopColor="var(--primary-glow)" stopOpacity="0.0" />
-            </linearGradient>
-          </defs>
-          <path d={areaD} fill="url(#altitudeGradient)" />
-          <path d={pathD} fill="none" stroke="var(--primary-glow)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-          {points.map((pt) => {
-            const isHovered = hoveredNodeId === pt.val;
-            return (
-              <circle
-                key={pt.idx}
-                cx={pt.x}
-                cy={pt.y}
-                r={isHovered ? 4.5 : 2}
-                fill={isHovered ? '#ff00b8' : 'var(--primary-glow)'}
-                className="sparkline-dot"
-                onMouseEnter={() => setHoveredNodeId(pt.val)}
-                onMouseLeave={() => setHoveredNodeId(null)}
-                onClick={() => {
-                  treeRef.current?.focusOnNode(pt.val);
-                }}
-              />
-            );
-          })}
-        </svg>
-        <div className="sparkline-labels">
-          <span>start: {sequence[0]}</span>
-          <span>peak: {maxVal}</span>
-          <span>end: 1</span>
-        </div>
-      </div>
-    );
   };
 
   return (
@@ -231,18 +316,11 @@ function App() {
         colorScheme={colorScheme}
         edgeStyle={edgeStyle}
         density={density}
-        hoveredNodeId={hoveredNodeId}
-        onHoverNode={setHoveredNodeId}
+        hoveredNodeId={isSequenceMode ? hoveredNodeId : undefined}
+        onHoverNode={handleHoverNodeFromTree}
         onSelectNode={handleSelectNode}
         onRequestSeed={setPendingSeed}
-        onPathComplete={() => {
-          confetti({
-            particleCount: 200,
-            spread: 100,
-            origin: { y: 0.6 },
-            colors: palette === 'dark' ? ['#00ffaa', '#00b8ff', '#ffffff'] : ['#009650', '#0064c8', '#ffffff']
-          });
-        }}
+        onPathComplete={handlePathComplete}
       />
 
       {/* Floating Canvas Navigation HUD */}
@@ -371,7 +449,10 @@ function App() {
         {showControls && (
           <div className="expanded-controls-grid">
             <div className="controls-overlay-mobile">
-              <button onClick={() => setIsSequenceMode(!isSequenceMode)}>
+              <button onClick={() => {
+                if (isSequenceMode) setHoveredNodeId(null);
+                setIsSequenceMode(!isSequenceMode);
+              }}>
                 {isSequenceMode ? 'hide sequence analysis' : 'show sequence analysis'}
               </button>
 
@@ -447,35 +528,13 @@ function App() {
             </div>
 
             {isSequenceMode && (
-              <div className="plan-overlay-mobile">
-                <div className="plan-title">analysis for seed {sequence[0] || seed}</div>
-                {renderSparkline()}
-                <div className="plan-stats-grid">
-                  <div className="plan-stat"><span>peak:</span> <strong>{maxVal}</strong></div>
-                  <div className="plan-stat"><span>steps:</span> <strong>{sequence.length - 1}</strong></div>
-                  <div className="plan-stat"><span>even:</span> <strong>{evenStepsCount}</strong></div>
-                  <div className="plan-stat"><span>odd:</span> <strong>{oddStepsCount}</strong></div>
-                </div>
-                <div className="step-list-mini">
-                  {sequence.map((val, idx) => {
-                    const isHovered = hoveredNodeId === val;
-                    return (
-                      <div 
-                        key={idx} 
-                        className={`plan-step ${isHovered ? 'hovered' : ''}`}
-                        onMouseEnter={() => setHoveredNodeId(val)} 
-                        onMouseLeave={() => setHoveredNodeId(null)} 
-                        onClick={() => {
-                          treeRef.current?.focusOnNode(val);
-                        }}
-                        title="Click to focus node on tree"
-                      >
-                        step {idx}: {val} <span style={{opacity: 0.5}}>{val % 2 === 0 ? '(even)' : '(odd)'}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+              <SequenceAnalysisPanel
+                sequence={sequence}
+                seed={seed}
+                hoveredNodeId={hoveredNodeId}
+                onHoverNode={setHoveredNodeId}
+                onFocusNode={handleFocusNode}
+              />
             )}
           </div>
         )}
